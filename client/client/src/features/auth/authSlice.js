@@ -32,7 +32,7 @@ export const checkAuth = createAsyncThunk(
   'auth/check',
   async (_, { rejectWithValue }) => {
     try {
-      // Идем на /refresh, сервер прочитает HttpOnly куку и вернет новый Access Token
+      
       const response = await api.get('/auth/refresh');
       return response.data;
     } catch (error) {
@@ -55,8 +55,8 @@ export const logoutUser = createAsyncThunk(
 const authSlice = createSlice({
   name: 'auth',
   initialState: {
-    user: null,         // Данные пользователя { userId, email }
-    accessToken: null,  // Access Token хранится ТОЛЬКО В ПАМЯТИ REDUX
+    user: null,         //  userId, email 
+    accessToken: null, 
     isLoading: true,    // Идет ли первичная проверка сессии
     error: null,
   },

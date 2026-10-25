@@ -7,7 +7,7 @@ export const fetchVacancies = createAsyncThunk(
     async (_, { rejectWithValue }) => {
         try {
             const response = await api.get('/vacancies');
-            return response.data; // Возвращает массив вакансий с бэкенда
+            return response.data; 
         } catch (error) {
             return rejectWithValue(
                 error.response?.data?.message || 'Ошибка при загрузке вакансий.'
@@ -20,7 +20,7 @@ const vacanciesSlice = createSlice({
     name: 'vacancies',
     initialState: {
         items: [],
-        status: 'idle', // 'idle' | 'loading' | 'succeeded' | 'failed'
+        status: 'idle', 
         error: null,
         searchQuery: '',
         minSalary: '',

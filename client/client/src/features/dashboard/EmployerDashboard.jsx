@@ -1,6 +1,21 @@
 import React, { useState, useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { 
+    Chart as ChartJS, 
+    ArcElement, 
+    Tooltip, 
+    Legend, 
+    CategoryScale, 
+    LinearScale, 
+    BarElement, 
+    PointElement, 
+    LineElement, 
+    Title , 
+    Filler
+} from 'chart.js';
+import { Doughnut, Bar, Line } from 'react-chartjs-2';
+
+import { 
     fetchDashboardData, 
     createVacancy, 
     updateVacancy, 
@@ -8,6 +23,20 @@ import {
     updateResponseStatus 
 } from './dashboardSlice';
 import { fetchVacancies } from '../vacancies/vacanciesSlice';
+
+// Регистрация модулей Chart.js
+ChartJS.register(
+  ArcElement, 
+  Tooltip, 
+  Legend, 
+  CategoryScale, 
+  LinearScale, 
+  BarElement, 
+  PointElement, 
+  LineElement, 
+  Title, 
+    Filler
+);
 
 export function EmployerDashboard() {
   const dispatch = useDispatch();
@@ -28,8 +57,7 @@ export function EmployerDashboard() {
 
   // Извлекаем профиль работодателя с учетом вложенностей
   const actualEmployer = employerProfile?.employer || employerProfile || {};
-  console.log(actualEmployer);
-  
+
   const displayName = 
     actualEmployer?.user?.name || 
     actualEmployer?.companyName || 
@@ -67,14 +95,27 @@ export function EmployerDashboard() {
   });
 
   // ==========================================
-  // АНАЛИТИЧЕСКИЕ РАСЧЕТЫ
+  // АНАЛИТИЧЕСКИЕ РАСЧЕТЫ И ДАННЫЕ ДЛЯ CHART.JS
   // ==========================================
 
+  // 1. Статусы откликов
   const pendingCount = myResponses.filter(r => r.status === 'pending' || !r.status).length;
   const acceptedCount = myResponses.filter(r => r.status === 'accepted').length;
   const rejectedCount = myResponses.filter(r => r.status === 'rejected').length;
-  const totalResponses = myResponses.length;
 
+  const responseStatusChartData = {
+    labels: ['На рассмотрении', 'Принято (Приглашения)', 'Отклонено'],
+    datasets: [
+      {
+        data: [pendingCount, acceptedCount, rejectedCount],
+        backgroundColor: ['#f39c12', '#2ecc71', '#e74c3c'],
+        borderColor: ['#ffffff', '#ffffff', '#ffffff'],
+        borderWidth: 2,
+      },
+    ],
+  };
+
+  // 2. Средняя зарплата по сферам
   const sphereStats = myVacancies.reduce((acc, v) => {
     let sphere = 'Другое';
     const titleLower = (v.title || '').toLowerCase();
@@ -84,7 +125,7 @@ export function EmployerDashboard() {
     } else if (titleLower.includes('маркет') || titleLower.includes('smm') || titleLower.includes('дизайн') || titleLower.includes('seo')) {
       sphere = 'Маркетинг & Дизайн';
     } else if (titleLower.includes('продаж') || titleLower.includes('менеджер') || titleLower.includes('sales')) {
-      sphere = 'Продажи & Работа с клиентами';
+      sphere = 'Продажи';
     } else if (titleLower.includes('повар') || titleLower.includes('кухн') || titleLower.includes('официант') || titleLower.includes('ресторан')) {
       sphere = 'Рестораны & Общепит';
     }
@@ -96,6 +137,43 @@ export function EmployerDashboard() {
     acc[sphere].totalSalary += Number(v.salary || 0);
     return acc;
   }, {});
+
+  const sphereLabels = Object.keys(sphereStats);
+  const sphereAvgSalaries = sphereLabels.map(s => Math.round(sphereStats[s].totalSalary / sphereStats[s].count));
+
+  const salaryChartData = {
+    labels: sphereLabels.length ? sphereLabels : ['Нет данных'],
+    datasets: [
+      {
+        label: 'Средняя зарплата (₸)',
+        data: sphereAvgSalaries.length ? sphereAvgSalaries : [0],
+        backgroundColor: '#3498db',
+        borderRadius: 4,
+      },
+    ],
+  };
+
+  // 3. Динамика откликов по вакансиям
+  const vacancyTitles = myVacancies.map(v => v.title);
+  const vacancyResponsesCounts = myVacancies.map(v => 
+    myResponses.filter(r => String(r.vacancy?._id || r.vacancy) === String(v._id)).length
+  );
+
+  const responsesPerVacancyChartData = {
+    labels: vacancyTitles.length ? vacancyTitles : ['Вакансий нет'],
+    datasets: [
+      {
+        label: 'Количество откликов',
+        data: vacancyResponsesCounts.length ? vacancyResponsesCounts : [0],
+        borderColor: '#9b59b6',
+        backgroundColor: 'rgba(155, 89, 182, 0.1)',
+        tension: 0.3,
+        fill: true,
+        pointRadius: 5,
+        pointBackgroundColor: '#8e44ad',
+      },
+    ],
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -149,7 +227,7 @@ export function EmployerDashboard() {
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+    <div style={{ display: 'flex',width:1000 , flexDirection: 'column', gap: 24 }}>
       {(error || actionError) && (
         <div style={{ color: '#e74c3c', padding: 12, background: '#fdf2e9', borderRadius: 6, border: '1px solid #f5c6cb' }}>
           Ошибка: {error || actionError}
@@ -160,98 +238,40 @@ export function EmployerDashboard() {
           БЛОК ПРОФИЛЯ РАБОТОДАТЕЛЯ
          ========================================== */}
       <div style={{ background: '#fff', padding: 20, borderRadius: 8, border: '1px solid #e1e8ed', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 15 }}>
+        <div style={{ display: 'flex', justifyContent: 'center', alignItems:'center', flexWrap: 'wrap', gap: 15 }}>
           <div>
             <h2 style={{ margin: '0 0 5px 0', color: '#2c3e50' }}>{displayName}</h2>
-            <p style={{ margin: '0 0 5px 0', fontSize: 14, color: '#34495e', fontWeight: 600 }}>
-              🏢 {companyName}
-            </p>
             <p style={{ margin: 0, fontSize: 14, color: '#7f8c8d' }}>
               Роль: <strong style={{ color: '#27ae60' }}>Работодатель</strong>
             </p>
           </div>
-          <div style={{ background: '#f8f9fa', padding: '8px 14px', borderRadius: 6, border: '1px solid #eee' }}>
-            <span style={{ fontSize: 13, color: '#555' }}>Телефон: </span>
-            <strong>{companyPhone}</strong>
-          </div>
         </div>
       </div>
-
-      {/* ==========================================
-          БЛОК АНАЛИТИКИ И СТАТИСТИКИ 
-         ========================================== */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 20 }}>
-        
-        {/* Воронка статусов откликов */}
-        <div style={{ background: '#fff', padding: 20, borderRadius: 8, border: '1px solid #e1e8ed', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
-          <h3 style={{ margin: '0 0 15px 0', color: '#2c3e50', fontSize: 16 }}>📊 Воронка статусов откликов</h3>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 4 }}>
-                <span>Всего откликов</span>
-                <strong>{totalResponses}</strong>
+              {/* Список моих вакансий */}
+      <div style={{ background: '#fff', padding: 20, borderRadius: 8, border: '1px solid #e1e8ed' }}>
+        <h3 style={{ margin: '0 0 15px 0', color: '#2c3e50' }}>Мои вакансии ({myVacancies.length})</h3>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {myVacancies.map(vacancy => (
+            <div key={vacancy._id} style={{ border: '1px solid #e1e8ed', padding: 15, borderRadius: 6, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <h4 style={{ margin: '0 0 5px 0' }}>{vacancy.title} ({vacancy.city})</h4>
+                <p style={{ margin: '0 0 5px 0', color: '#555', fontSize: 13 }}>
+                  Зарплата: <strong>{vacancy.salary?.toLocaleString()} ₸</strong> | Опыт: {vacancy.experience}
+                </p>
               </div>
-              <div style={{ height: 8, background: '#ecf0f1', borderRadius: 4, overflow: 'hidden' }}>
-                <div style={{ width: '100%', height: '100%', background: '#3498db' }}></div>
-              </div>
-            </div>
-
-            <div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 4 }}>
-                <span style={{ color: '#f39c12' }}>⏳ На рассмотрении</span>
-                <strong>{pendingCount} ({totalResponses ? Math.round((pendingCount / totalResponses) * 100) : 0}%)</strong>
-              </div>
-              <div style={{ height: 8, background: '#ecf0f1', borderRadius: 4, overflow: 'hidden' }}>
-                <div style={{ width: `${totalResponses ? (pendingCount / totalResponses) * 100 : 0}%`, height: '100%', background: '#f39c12' }}></div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button onClick={() => handleEdit(vacancy)} style={{ padding: '6px 12px', background: '#3498db', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer' }}>
+                  Редактировать
+                </button>
+                <button onClick={() => handleDelete(vacancy._id)} style={{ padding: '6px 12px', background: '#e74c3c', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer' }}>
+                  Удалить
+                </button>
               </div>
             </div>
-
-            <div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 4 }}>
-                <span style={{ color: '#27ae60' }}>✅ Приглашения (Принято)</span>
-                <strong>{acceptedCount} ({totalResponses ? Math.round((acceptedCount / totalResponses) * 100) : 0}%)</strong>
-              </div>
-              <div style={{ height: 8, background: '#ecf0f1', borderRadius: 4, overflow: 'hidden' }}>
-                <div style={{ width: `${totalResponses ? (acceptedCount / totalResponses) * 100 : 0}%`, height: '100%', background: '#27ae60' }}></div>
-              </div>
-            </div>
-
-            <div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 4 }}>
-                <span style={{ color: '#e74c3c' }}>❌ Отклонено</span>
-                <strong>{rejectedCount} ({totalResponses ? Math.round((rejectedCount / totalResponses) * 100) : 0}%)</strong>
-              </div>
-              <div style={{ height: 8, background: '#ecf0f1', borderRadius: 4, overflow: 'hidden' }}>
-                <div style={{ width: `${totalResponses ? (rejectedCount / totalResponses) * 100 : 0}%`, height: '100%', background: '#e74c3c' }}></div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Средние зарплаты по сферам */}
-        <div style={{ background: '#fff', padding: 20, borderRadius: 8, border: '1px solid #e1e8ed', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
-          <h3 style={{ margin: '0 0 15px 0', color: '#2c3e50', fontSize: 16 }}>💰 Средняя зарплата по сферам</h3>
-          {Object.keys(sphereStats).length === 0 ? (
-            <p style={{ color: '#888', fontSize: 13 }}>Нет данных для расчета зарплат</p>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              {Object.entries(sphereStats).map(([sphere, stats]) => {
-                const avgSalary = Math.round(stats.totalSalary / stats.count);
-                return (
-                  <div key={sphere} style={{ borderBottom: '1px solid #f2f2f2', paddingBottom: 8 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
-                      <span style={{ fontWeight: 600 }}>{sphere} ({stats.count} вак.)</span>
-                      <strong style={{ color: '#27ae60' }}>{avgSalary.toLocaleString()} ₸</strong>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
+          ))}
         </div>
       </div>
-
-      {/* ==========================================
+            {/* ==========================================
           СПИСОК ОТКЛИКОВ С КНОПКАМИ ПРИНЯТЬ/ОТКЛОНИТЬ
          ========================================== */}
       <div style={{ background: '#fff', padding: 20, borderRadius: 8, border: '1px solid #e1e8ed', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
@@ -301,12 +321,9 @@ export function EmployerDashboard() {
         )}
       </div>
 
-      {/* ==========================================
-          УПРАВЛЕНИЕ ВАКАНСИЯМИ (ФОРМА И СПИСОК)
-         ========================================== */}
-      <div style={{ background: '#fff', padding: 20, borderRadius: 8, border: '1px solid #e1e8ed' }}>
+      <div style={{ background: '#fff', padding: 20, borderRadius: 8, border: '1px solid #e1e8ed' , justifyItems:'center' }}>
         <h3 style={{ margin: '0 0 15px 0', color: '#2c3e50' }}>{editingId ? 'Редактировать вакансию' : 'Создать новую вакансию'}</h3>
-        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 12, maxWidth: 500 }}>
+        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 12, minWidth: 500 }}>
           <input type="text" placeholder="Название должности" value={title} onChange={e => setTitle(e.target.value)} required style={{ padding: 8, borderRadius: 4, border: '1px solid #ccc' }} />
           <input type="text" placeholder="Город" value={city} onChange={e => setCity(e.target.value)} required style={{ padding: 8, borderRadius: 4, border: '1px solid #ccc' }} />
           <input type="number" placeholder="Зарплата (₸)" value={salary} onChange={e => setSalary(e.target.value)} required style={{ padding: 8, borderRadius: 4, border: '1px solid #ccc' }} />
@@ -330,30 +347,39 @@ export function EmployerDashboard() {
         </form>
       </div>
 
-      {/* Список моих вакансий */}
-      <div style={{ background: '#fff', padding: 20, borderRadius: 8, border: '1px solid #e1e8ed' }}>
-        <h3 style={{ margin: '0 0 15px 0', color: '#2c3e50' }}>Мои вакансии ({myVacancies.length})</h3>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          {myVacancies.map(vacancy => (
-            <div key={vacancy._id} style={{ border: '1px solid #e1e8ed', padding: 15, borderRadius: 6, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div>
-                <h4 style={{ margin: '0 0 5px 0' }}>{vacancy.title} ({vacancy.city})</h4>
-                <p style={{ margin: '0 0 5px 0', color: '#555', fontSize: 13 }}>
-                  Зарплата: <strong>{vacancy.salary?.toLocaleString()} ₸</strong> | Опыт: {vacancy.experience}
-                </p>
-              </div>
-              <div style={{ display: 'flex', gap: 8 }}>
-                <button onClick={() => handleEdit(vacancy)} style={{ padding: '6px 12px', background: '#3498db', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer' }}>
-                  Редактировать
-                </button>
-                <button onClick={() => handleDelete(vacancy._id)} style={{ padding: '6px 12px', background: '#e74c3c', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer' }}>
-                  Удалить
-                </button>
-              </div>
-            </div>
-          ))}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 20 }}>
+        
+        {/* График 1: Статусы откликов (Doughnut) */}
+        <div style={{ background: '#fff', padding: 20, borderRadius: 8, border: '1px solid #e1e8ed', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+          <h3 style={{ margin: '0 0 15px 0', color: '#2c3e50', fontSize: 16, width: '100%', textAlign: 'left' }}>📊 Воронка статусов</h3>
+          <div style={{ width: '100%', maxHeight: '240px', display: 'flex', justifyContent: 'center' }}>
+            <Doughnut data={responseStatusChartData} options={{ responsive: true, maintainAspectRatio: false }} />
+          </div>
         </div>
+
+        {/* График 2: Средние зарплаты по сферам (Bar) */}
+        <div style={{ background: '#fff', padding: 20, borderRadius: 8, border: '1px solid #e1e8ed', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+          <h3 style={{ margin: '0 0 15px 0', color: '#2c3e50', fontSize: 16 }}>💰 Средняя зарплата (₸)</h3>
+          <div style={{ width: '100%', height: '220px' }}>
+            <Bar data={salaryChartData} options={{ responsive: true, maintainAspectRatio: false }} />
+          </div>
+        </div>
+
+        {/* График 3: Отклики по вакансиям (Line) */}
+        <div style={{ background: '#fff', padding: 20, borderRadius: 8, border: '1px solid #e1e8ed', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+          <h3 style={{ margin: '0 0 15px 0', color: '#2c3e50', fontSize: 16 }}>📈 Отклики по вакансиям</h3>
+          <div style={{ width: '100%', height: '220px' }}>
+            <Line data={responsesPerVacancyChartData} options={{ responsive: true, maintainAspectRatio: false }} />
+          </div>
+        </div>
+
       </div>
+
+
+
+
+
+
     </div>
   );
 }

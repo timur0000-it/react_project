@@ -11,7 +11,7 @@ export function DashboardPage() {
     <div style={{ minHeight: '100vh', background: '#f8f9fa', fontFamily: 'system-ui, sans-serif' }}>
       <Header />
 
-      <main style={{ maxWidth: 1100, margin: '20px auto', padding: '0 24px 40px' }}>
+      <main style={{  margin: '20px auto', padding: '0 24px 40px' }}>
         <div style={{ marginBottom: 20 }}>
           <h2 style={{ margin: '0 0 5px 0', color: '#2c3e50' }}>Личный кабинет</h2>
           <p style={{ margin: 0, color: '#666' }}>

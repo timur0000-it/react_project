@@ -21,12 +21,7 @@ export function RegisterPage() {
     dispatch(clearError());
 
     const result = await dispatch(
-      registerUser({
-        name,
-        email,
-        password,
-        role
-      })
+      registerUser({name,email,password,role})
     );
 
     if (registerUser.fulfilled.match(result)) {
@@ -45,73 +40,31 @@ export function RegisterPage() {
       )}
 
       <form onSubmit={handleSubmit}>
-        <input
-          type="text"
-          placeholder="Имя"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          required
-          style={{
-            display: 'block',
-            width: '100%',
-            marginBottom: 10
+        <input type="text"placeholder="Имя" value={name} onChange={(e) => setName(e.target.value)} required 
+        style={{display: 'block',width: '100%',marginBottom: 10
           }}
         />
 
-        <input
-          type="email"
-          placeholder="Email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          required
-          style={{
-            display: 'block',
-            width: '100%',
-            marginBottom: 10
+        <input type="email"  placeholder="Email"  value={email} onChange={(e) => setEmail(e.target.value)}  required
+              style={{ display: 'block', width: '100%', marginBottom: 10
           }}
         />
 
-        <input
-          type="password"
-          placeholder="Пароль (минимум 8 символов)"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          minLength={8}
-          required
-          style={{
-            display: 'block',
-            width: '100%',
-            marginBottom: 10
-          }}
+        <input type="password" placeholder="Пароль (минимум 8 символов)" value={password} onChange={(e) => setPassword(e.target.value)}  minLength={8} required
+          style={{ display: 'block', width: '100%', marginBottom: 10}}
         />
 
-        <label
-          htmlFor="role"
-          style={{ display: 'block', marginBottom: 5 }}
-        >
+        <label htmlFor="role" style={{ display: 'block', marginBottom: 5 }}>
           Тип аккаунта
         </label>
 
-        <select
-          id="role"
-          value={role}
-          onChange={(e) => setRole(e.target.value)}
-          style={{
-            display: 'block',
-            width: '100%',
-            marginBottom: 15,
-            padding: 8
-          }}
-        >
+        <select id="role" value={role} onChange={(e) => setRole(e.target.value)}
+          style={{ display: 'block',width: '100%', marginBottom: 15, padding: 8}}>
           <option value="worker">Соискатель</option>
           <option value="employer">Работодатель</option>
         </select>
 
-        <button
-          type="submit"
-          disabled={isLoading}
-          style={{ width: '100%', padding: 8 }}
-        >
+        <button type="submit" disabled={isLoading} style={{ width: '100%', padding: 8 }}>
           {isLoading ? 'Регистрация...' : 'Создать аккаунт'}
         </button>
       </form>

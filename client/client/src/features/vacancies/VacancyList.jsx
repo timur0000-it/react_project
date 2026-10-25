@@ -1,12 +1,6 @@
 import { useEffect } from "react";
 import { useDispatch, useSelector } from "react-redux";
-import { 
-    fetchVacancies, 
-    setSearchQuery, 
-    setMinSalary, 
-    setExperienceFilter, 
-    resetFilters 
-} from "./vacanciesSlice";
+import {  fetchVacancies,  setSearchQuery,  setMinSalary,  setExperienceFilter, resetFilters } from "./vacanciesSlice";
 import { fetchDashboardData, applyToVacancy } from "../dashboard/dashboardSlice";
 import { Loader } from "../../components/common/Loader";
 import { Input } from "../../components/common/Input";
@@ -21,9 +15,7 @@ export function VacancyList() {
     useEffect(() => {
         if (status === 'idle') {
             dispatch(fetchVacancies());
-        }
-        // Загружаем отклики для проверки статусов кнопок
-        dispatch(fetchDashboardData());
+        }dispatch(fetchDashboardData());
     }, [status, dispatch]);
 
     const handleApply = (vacancyId) => {
@@ -106,9 +98,8 @@ export function VacancyList() {
                                 borderRadius: '4px', 
                                 border: '1px solid #ccc',
                                 background: '#fff',
-                                fontSize: '14px'
-                            }}
-                        >
+                                fontSize: '14px' }}>
+                                    
                             <option value="Все">Все варианты</option>
                             <option value="Без опыта">Без опыта</option>
                             <option value="1–3 года">1–3 года</option>
@@ -121,17 +112,8 @@ export function VacancyList() {
                 {/* Сброс фильтров */}
                 {(searchQuery || minSalary || experienceFilter !== 'Все') && (
                     <button 
-                        onClick={() => dispatch(resetFilters())}
-                        style={{
-                            alignSelf: 'flex-end',
-                            background: 'transparent',
-                            border: 'none',
-                            color: '#e74c3c',
-                            cursor: 'pointer',
-                            fontSize: '13px',
-                            fontWeight: 600
-                        }}
-                    >
+                        onClick={() => dispatch(resetFilters())} 
+                        style={{ alignSelf: 'flex-end',background: 'transparent', border: 'none', color: '#e74c3c', cursor: 'pointer', fontSize: '13px',fontWeight: 600 }}>
                         ✕ Сбросить фильтры
                     </button>
                 )}
@@ -142,20 +124,10 @@ export function VacancyList() {
                 <p style={{ textAlign: 'center', color: '#777' }}>Вакансии с такими параметрами не найдены</p>
             ) : (
                 <div
-                    style={{
-                        display: 'grid',
-                        gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
-                        gap: 20
-                    }}
-                >
+                    style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 20}}>
                     {filteredVacancies.map(vacancy => (
-                        <VacancyCard 
-                            key={vacancy._id} 
-                            vacancy={vacancy} 
-                            userRole={user?.role}
-                            hasApplied={myAppliedVacancyIds.has(String(vacancy._id))}
-                            onApply={() => handleApply(vacancy._id)}
-                        />
+                        <VacancyCard  key={vacancy._id}  vacancy={vacancy}  userRole={user?.role} 
+                         hasApplied={myAppliedVacancyIds.has(String(vacancy._id))} onApply={() => handleApply(vacancy._id)}/>
                     ))}
                 </div>
             )}

@@ -392,7 +392,7 @@ app.get(
 // GET /api/employers
 // ========================================
 
-app.get('/api/employers', async (req, res) => {
+app.get('/api/employers',authenticateToken , async (req, res) => {
   try {
     const employers = await Employer.find().populate('user', 'name email role').lean();
     return res.json(employers);
@@ -410,7 +410,7 @@ app.get('/api/employers', async (req, res) => {
 // GET /api/workers
 // ========================================
 
-app.get('/api/workers', async (req, res) => {
+app.get('/api/workers',authenticateToken , async (req, res) => {
   try {
     // Добавляем populate, чтобы подтягивать связанные данные из коллекции User
     const workers = await Worker.find().populate('user', 'name email role').lean();
@@ -427,7 +427,7 @@ app.get('/api/workers', async (req, res) => {
 // GET /api/responses
 // ========================================
 
-app.get('/api/responses', async (req, res) => {
+app.get('/api/responses',authenticateToken , async (req, res) => {
   try {
     const responses = await Response.find()
       .populate('worker')
@@ -448,7 +448,7 @@ app.get('/api/responses', async (req, res) => {
 // GET /api/vacancies
 // ========================================
 
-app.get('/api/vacancies', async (req, res) => {
+app.get('/api/vacancies', authenticateToken ,async (req, res) => {
   try {
     const vacancies = await Vacancy.find()
       .populate('employer')
@@ -475,7 +475,7 @@ app.get('/api/vacancies', async (req, res) => {
 // GET /api/vacancies/:id
 // ========================================
 
-app.get('/api/vacancies/:id', async (req, res) => {
+app.get('/api/vacancies/:id', authenticateToken ,async (req, res) => {
   try {
     if (!mongoose.isValidObjectId(req.params.id)) {
       return res.status(400).json({
@@ -551,6 +551,8 @@ app.post('/api/vacancies', authenticateToken, async (req, res) => {
 // Обновление вакансии (только владелец-работодатель)
 app.patch('/api/vacancies/:id', authenticateToken, async (req, res) => {
   try {
+        
+    
     if (req.user.role !== 'employer') {
       return res.status(403).json({ message: 'Доступ запрещен' });
     }

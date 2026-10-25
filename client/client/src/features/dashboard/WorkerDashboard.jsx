@@ -1,6 +1,34 @@
 import React, { useState, useEffect } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
+import { 
+    Chart as ChartJS, 
+    ArcElement, 
+    Tooltip, 
+    Legend, 
+    CategoryScale, 
+    LinearScale, 
+    BarElement, 
+    PointElement, 
+    LineElement, 
+    Title , 
+    Filler
+} from 'chart.js';
+import { Doughnut, Bar, Line } from 'react-chartjs-2';
 import { fetchDashboardData, updateWorkerResume } from './dashboardSlice';
+
+// Регистрация компонентов Chart.js
+ChartJS.register(
+  ArcElement, 
+  Tooltip, 
+  Legend, 
+  CategoryScale, 
+  LinearScale, 
+  BarElement, 
+  PointElement, 
+  LineElement, 
+  Title, 
+    Filler
+);
 
 export function WorkerDashboard() {
   const dispatch = useDispatch();
@@ -15,23 +43,15 @@ export function WorkerDashboard() {
     dispatch(fetchDashboardData());
   }, [dispatch]);
 
-  // Извлекаем объединенные данные профиля с учетом возможных вложенностей бэкенда
-const actualWorker = workerProfile?.worker || workerProfile || {};
-  
-  // Отладочный вывод (посмотрите в консоль браузера F12, что именно приходит)
-  console.log('Actual Worker Data:', actualWorker);
-console.log(actualWorker.user);
+  const actualWorker = workerProfile?.worker || workerProfile || {};
 
-  // Имя: проверяем и в самом worker, и в под-объекте user, и в auth
   const displayName = 
     actualWorker?.user?.name || 
     actualWorker?.name || 
     user?.name || 
     user?.user?.name || 
-    // user?.email || 
     'Соискатель';
 
-  // Резюме: берем строго из actualWorker
   const displayResume = 
     actualWorker?.resume || 
     resume || 
@@ -60,19 +80,40 @@ console.log(actualWorker.user);
     return String(workerId) === String(user?.profileId);
   });
 
-  // Воронка и аналитика
-  const totalApplied = myResponses.length;
+  // ==========================================
+  // АНАЛИТИКА И ДАННЫЕ ДЛЯ ГРАФИКОВ
+  // ==========================================
+
   const pendingCount = myResponses.filter(r => r.status === 'pending' || !r.status).length;
   const acceptedCount = myResponses.filter(r => r.status === 'accepted').length;
   const rejectedCount = myResponses.filter(r => r.status === 'rejected').length;
 
+  // 1. График статусов откликов (Doughnut)
+  const responseStatusChartData = {
+    labels: ['На рассмотрении', 'Приглашения', 'Отказы'],
+    datasets: [
+      {
+        data: [pendingCount, acceptedCount, rejectedCount],
+        backgroundColor: ['#f39c12', '#2ecc71', '#e74c3c'],
+        borderWidth: 2,
+        borderColor: '#ffffff',
+      },
+    ],
+  };
+
   let totalSalaryApplied = 0;
   const appliedSphereStats = {};
+  const appliedSalariesList = [];
+  const appliedTitlesList = [];
 
   myResponses.forEach(r => {
     const vac = vacancies.find(v => String(v._id) === String(r.vacancy?._id || r.vacancy));
     if (vac) {
-      if (vac.salary) totalSalaryApplied += Number(vac.salary);
+      if (vac.salary) {
+        totalSalaryApplied += Number(vac.salary);
+        appliedSalariesList.push(Number(vac.salary));
+        appliedTitlesList.push(vac.title || 'Вакансия');
+      }
 
       let sphere = 'Другое';
       const titleLower = (vac.title || '').toLowerCase();
@@ -90,7 +131,38 @@ console.log(actualWorker.user);
     }
   });
 
-  const avgSalaryApplied = totalApplied ? Math.round(totalSalaryApplied / totalApplied) : 0;
+  // 2. График распределения по сферам (Bar)
+  const sphereLabels = Object.keys(appliedSphereStats);
+  const sphereCounts = sphereLabels.map(s => appliedSphereStats[s]);
+
+  const sphereChartData = {
+    labels: sphereLabels.length ? sphereLabels : ['Нет данных'],
+    datasets: [
+      {
+        label: 'Количество откликов',
+        data: sphereCounts.length ? sphereCounts : [0],
+        backgroundColor: '#3498db',
+        borderRadius: 4,
+      },
+    ],
+  };
+
+  // 3. График зарплат по откликам (Line)
+  const salaryTrendChartData = {
+    labels: appliedTitlesList.length ? appliedTitlesList : ['Нет данных'],
+    datasets: [
+      {
+        label: 'Зарплата в отклике (₸)',
+        data: appliedSalariesList.length ? appliedSalariesList : [0],
+        borderColor: '#27ae60',
+        backgroundColor: 'rgba(39, 174, 96, 0.1)',
+        tension: 0.3,
+        fill: true,
+        pointRadius: 5,
+        pointBackgroundColor: '#2ecc71',
+      },
+    ],
+  };
 
   if (status === 'loading' && !workerProfile) {
     return <p style={{ textAlign: 'center', color: '#555' }}>Загрузка кабинета соискателя...</p>;
@@ -115,7 +187,6 @@ console.log(actualWorker.user);
               Роль: <strong style={{ color: '#3498db' }}>Соискатель</strong>
             </p>
           </div>
-
         </div>
 
         <hr style={{ border: 'none', borderTop: '1px solid #f0f0f0', margin: '15px 0' }} />
@@ -130,77 +201,34 @@ console.log(actualWorker.user);
       </div>
 
       {/* ==========================================
-          БЛОК АНАЛИТИКИ
+          БЛОК АНАЛИТИКИ (3 ГРАФИКА)
          ========================================== */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 20 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 20 }}>
         
-        {/* Воронка статусов откликов */}
-        <div style={{ background: '#fff', padding: 20, borderRadius: 8, border: '1px solid #e1e8ed', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
-          <h3 style={{ margin: '0 0 15px 0', color: '#2c3e50', fontSize: 16 }}>📊 Статистика ваших откликов</h3>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 4 }}>
-                <span>Всего отправлено откликов</span>
-                <strong>{totalApplied}</strong>
-              </div>
-              <div style={{ height: 8, background: '#ecf0f1', borderRadius: 4, overflow: 'hidden' }}>
-                <div style={{ width: '100%', height: '100%', background: '#3498db' }}></div>
-              </div>
-            </div>
-
-            <div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 4 }}>
-                <span style={{ color: '#f39c12' }}>⏳ На рассмотрении</span>
-                <strong>{pendingCount} ({totalApplied ? Math.round((pendingCount / totalApplied) * 100) : 0}%)</strong>
-              </div>
-              <div style={{ height: 8, background: '#ecf0f1', borderRadius: 4, overflow: 'hidden' }}>
-                <div style={{ width: `${totalApplied ? (pendingCount / totalApplied) * 100 : 0}%`, height: '100%', background: '#f39c12' }}></div>
-              </div>
-            </div>
-
-            <div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 4 }}>
-                <span style={{ color: '#27ae60' }}>🎉 Приглашения</span>
-                <strong>{acceptedCount} ({totalApplied ? Math.round((acceptedCount / totalApplied) * 100) : 0}%)</strong>
-              </div>
-              <div style={{ height: 8, background: '#ecf0f1', borderRadius: 4, overflow: 'hidden' }}>
-                <div style={{ width: `${totalApplied ? (acceptedCount / totalApplied) * 100 : 0}%`, height: '100%', background: '#27ae60' }}></div>
-              </div>
-            </div>
-
-            <div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 4 }}>
-                <span style={{ color: '#e74c3c' }}>❌ Отказы</span>
-                <strong>{rejectedCount} ({totalApplied ? Math.round((rejectedCount / totalApplied) * 100) : 0}%)</strong>
-              </div>
-              <div style={{ height: 8, background: '#ecf0f1', borderRadius: 4, overflow: 'hidden' }}>
-                <div style={{ width: `${totalApplied ? (rejectedCount / totalApplied) * 100 : 0}%`, height: '100%', background: '#e74c3c' }}></div>
-              </div>
-            </div>
+        {/* График 1: Статусы откликов (Doughnut) */}
+        <div style={{ background: '#fff', padding: 20, borderRadius: 8, border: '1px solid #e1e8ed', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+          <h3 style={{ margin: '0 0 15px 0', color: '#2c3e50', fontSize: 16, width: '100%', textAlign: 'left' }}>📊 Воронка статусов</h3>
+          <div style={{ width: '100%', maxHeight: '240px', display: 'flex', justifyContent: 'center' }}>
+            <Doughnut data={responseStatusChartData} options={{ responsive: true, maintainAspectRatio: false }} />
           </div>
         </div>
 
-        {/* Средняя желаемая зарплата */}
+        {/* График 2: Отклики по сферам (Bar) */}
         <div style={{ background: '#fff', padding: 20, borderRadius: 8, border: '1px solid #e1e8ed', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
-          <h3 style={{ margin: '0 0 15px 0', color: '#2c3e50', fontSize: 16 }}>💰 Средняя желаемая зарплата</h3>
-          <p style={{ margin: '0 0 15px 0', fontSize: 22, fontWeight: 'bold', color: '#27ae60' }}>
-            {avgSalaryApplied ? `${avgSalaryApplied.toLocaleString()} ₸` : '0 ₸'}
-          </p>
-
-          <h4 style={{ margin: '0 0 10px 0', fontSize: 14, color: '#555' }}>Распределение откликов по сферам:</h4>
-          {Object.keys(appliedSphereStats).length === 0 ? (
-            <p style={{ color: '#888', fontSize: 13 }}>Вы еще не откликались на вакансии</p>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              {Object.entries(appliedSphereStats).map(([sphere, count]) => (
-                <div key={sphere} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
-                  <span>{sphere}</span>
-                  <strong>{count} откл.</strong>
-                </div>
-              ))}
-            </div>
-          )}
+          <h3 style={{ margin: '0 0 15px 0', color: '#2c3e50', fontSize: 16 }}>💼 Отклики по сферам</h3>
+          <div style={{ width: '100%', height: '220px' }}>
+            <Bar data={sphereChartData} options={{ responsive: true, maintainAspectRatio: false }} />
+          </div>
         </div>
+
+        {/* График 3: Динамика зарплат по откликам (Line) */}
+        <div style={{ background: '#fff', padding: 20, borderRadius: 8, border: '1px solid #e1e8ed', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+          <h3 style={{ margin: '0 0 15px 0', color: '#2c3e50', fontSize: 16 }}>📈 Зарплаты в откликах (₸)</h3>
+          <div style={{ width: '100%', height: '220px' }}>
+            <Line data={salaryTrendChartData} options={{ responsive: true, maintainAspectRatio: false }} />
+          </div>
+        </div>
+
       </div>
 
       {/* ==========================================
