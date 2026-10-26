@@ -1,18 +1,20 @@
-import React from 'react';
-import { Loader2 } from 'lucide-react';
+import { Loader2 } from 'lucide-react'
 
-// сгенерируй мне лоадер в виде реакт компонента, простой но красивый с lucide react
-
-export function Loader() {
-  return (
-    <div style={{ display: 'flex', justifyContent: 'center', padding: 40 }}>
-      <Loader2 size={36} className="spin" style={{ animation: 'spin 1s linear infinite' }} />
-      <style>{`
-        @keyframes spin {
-          from { transform: rotate(0deg); }
-          to { transform: rotate(360deg); }
-        }
-      `}</style>
-    </div>
-  );
+export function Loader({ size = 36, label = 'Загрузка...', className = '' }) {
+    return (
+        <div
+            className={`flex items-center justify-center p-10 ${className}`}
+            role="status"
+            aria-live="polite"
+        >
+            <Loader2
+                size={size}
+                className="animate-spin text-brand-600"
+                aria-hidden="true"
+            />
+            <span className="sr-only">{label}</span>
+        </div>
+    )
 }
+
+export default Loader;

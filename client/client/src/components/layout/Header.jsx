@@ -2,89 +2,61 @@ import React from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { logoutUser } from '../../features/auth/authSlice';
 import { Briefcase, UserCheck, LogOut } from 'lucide-react';
+import { Button } from '../../components/common/Button';
 
 export function Header({ activeTab, setActiveTab }) {
   const dispatch = useDispatch();
   const { user } = useSelector((state) => state.auth);
 
   return (
-    <header
-      style={{
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        padding: '16px 24px',
-        background: '#fff',
-        borderBottom: '1px solid #eee',
-        position: 'sticky',
-        top: 0,
-        zIndex: 10,
-        boxShadow: '0 2px 4px rgba(0,0,0,0.02)'
-      }}
-    >
-      {/* Логотип платформы */}
-      <div 
-        onClick={() => setActiveTab && setActiveTab('vacancies')}
-        style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}
-      >
-        <Briefcase size={28} color="#007bff" />
-        <h2 style={{ margin: 0, fontSize: 20, color: '#2c3e50', fontWeight: 'bold' }}>JobPortal</h2>
-      </div>
-
-      {/* Навигация и профиль */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 15 }}>
-        {/* Кнопка переключения в кабинет / список */}
-        {setActiveTab && (
-          <button
-            onClick={() => setActiveTab(activeTab === 'dashboard' ? 'vacancies' : 'dashboard')}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 8,
-              background: '#f0f2f5',
-              border: 'none',
-              padding: '8px 14px',
-              borderRadius: 6,
-              cursor: 'pointer',
-              fontWeight: 500,
-              color: '#333'
-            }}
-          >
-            <UserCheck size={18} color="#007bff" />
-            <span>
-              {activeTab === 'dashboard' ? ' Все вакансии' : ' Мой кабинет'}
-            </span>
-          </button>
-        )}
-
-        {/* Информация о пользователе */}
-        {user && (
-          <span style={{ fontSize: 14, color: '#666', borderLeft: '1px solid #ddd', paddingLeft: 12 }}>
-            {user.email} (<strong>{user.role === 'employer' ? 'Работодатель' : 'Соискатель'}</strong>)
-          </span>
-        )}
-
-        {/* Кнопка выхода */}
+    <header className="sticky top-0 z-10 border-b border-[var(--border)] bg-[color-mix(in_srgb,var(--bg)_85%,transparent)] backdrop-blur">
+      <div className="mx-auto flex h-16 w-full max-w-6xl items-center justify-between gap-4 px-4 sm:px-6">
+        {/* Логотип платформы */}
         <button
-          onClick={() => dispatch(logoutUser())}
-          title="Выйти из аккаунта"
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 6,
-            background: '#fff1f0',
-            border: '1px solid #ffa39e',
-            color: '#e74c3c',
-            cursor: 'pointer',
-            padding: '8px 12px',
-            borderRadius: 6,
-            fontSize: 14,
-            fontWeight: 500
-          }}
+          type="button"
+          onClick={() => setActiveTab && setActiveTab('vacancies')}
+          className="flex items-center gap-2.5 rounded-lg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500"
         >
-          <LogOut size={16} />
-          Выйти
+          <span className="grid size-9 place-items-center rounded-lg bg-brand-600 text-white shadow-sm">
+            <Briefcase size={20} aria-hidden="true" />
+          </span>
+          <span className="text-lg font-semibold tracking-tight">JobPortal</span>
         </button>
+
+        {/* Навигация и профиль */}
+        <div className="flex items-center gap-2 sm:gap-3">
+          {setActiveTab && (
+            <Button
+              variant="secondary"
+              onClick={() => setActiveTab(activeTab === 'dashboard' ? 'vacancies' : 'dashboard')}
+            >
+              <UserCheck size={18} className="text-brand-600" aria-hidden="true" />
+              <span>{activeTab === 'dashboard' ? 'Все вакансии' : 'Мой кабинет'}</span>
+            </Button>
+          )}
+
+          {user && (
+            <>
+              <span className="hidden h-6 w-px bg-[var(--border)] md:block" aria-hidden="true" />
+              <div className="hidden items-center gap-2 text-sm md:flex">
+                <span className="max-w-[200px] truncate text-[var(--muted)]">{user.email}</span>
+                <span className="rounded-full bg-brand-500/10 px-2 py-0.5 text-xs font-medium text-brand-700 dark:text-brand-100">
+                  {user.role === 'employer' ? 'Работодатель' : 'Соискатель'}
+                </span>
+              </div>
+            </>
+          )}
+
+          <Button
+            variant="danger-soft"
+            onClick={() => dispatch(logoutUser())}
+            title="Выйти из аккаунта"
+            aria-label="Выйти из аккаунта"
+          >
+            <LogOut size={16} aria-hidden="true" />
+            <span className="hidden sm:inline">Выйти</span>
+          </Button>
+        </div>
       </div>
     </header>
   );

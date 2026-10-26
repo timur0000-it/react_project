@@ -1,6 +1,7 @@
 import React from 'react';
 import { useSelector } from 'react-redux';
 import { Header } from '../layout/Header';
+import { Loader } from '../common/Loader';
 import { EmployerDashboard } from '../../features/dashboard/EmployerDashboard';
 import { WorkerDashboard } from '../../features/dashboard/WorkerDashboard';
 
@@ -8,18 +9,20 @@ export function DashboardPage() {
   const { user } = useSelector((state) => state.auth);
 
   return (
-    <div style={{ minHeight: '100vh', background: '#f8f9fa', fontFamily: 'system-ui, sans-serif' }}>
+    <div className="min-h-screen">
       <Header />
 
-      <main style={{  margin: '20px auto', padding: '0 24px 40px' }}>
-        <div style={{ marginBottom: 20 }}>
-          <h2 style={{ margin: '0 0 5px 0', color: '#2c3e50' }}>Личный кабинет</h2>
-          <p style={{ margin: 0, color: '#666' }}>
-            Вы вошли как: <strong>{user?.email}</strong> (
-            <span style={{ textTransform: 'capitalize' }}>
-              {user?.role === 'employer' ? 'Работодатель' : 'Соискатель'}
-            </span>
-            )
+      <main>
+        <div className="mx-auto w-full max-w-6xl px-4 pt-8 sm:px-6">
+          <h2 className="text-2xl font-semibold tracking-tight">Личный кабинет</h2>
+          <p className="mt-1.5 flex flex-wrap items-center gap-2 text-sm text-[var(--muted)]">
+            <span>Вы вошли как:</span>
+            <span className="font-medium text-[var(--text)]">{user?.email}</span>
+            {(user?.role === 'employer' || user?.role === 'worker') && (
+              <span className="rounded-full bg-brand-500/10 px-2 py-0.5 text-xs font-medium text-brand-700 dark:text-brand-100">
+                {user.role === 'employer' ? 'Работодатель' : 'Соискатель'}
+              </span>
+            )}
           </p>
         </div>
 
@@ -29,9 +32,7 @@ export function DashboardPage() {
         ) : user?.role === 'worker' ? (
           <WorkerDashboard />
         ) : (
-          <div style={{ background: '#fff', padding: 20, borderRadius: 8, textAlign: 'center' }}>
-            Загрузка профиля пользователя...
-          </div>
+          <Loader label="Загрузка профиля пользователя..." />
         )}
       </main>
     </div>

@@ -1,74 +1,64 @@
 import React, { useState } from "react";
-import { useSelector, useDispatch } from 'react-redux';
+import { useSelector } from "react-redux";
+import { Briefcase, LayoutDashboard } from "lucide-react";
 import { Header } from "../layout/Header";
+import { Button } from "../common/Button";
 import { VacancyList } from "../../features/vacancies/VacancyList";
 import { EmployerDashboard } from "../../features/dashboard/EmployerDashboard";
 import { WorkerDashboard } from "../../features/dashboard/WorkerDashboard";
-import { logoutUser } from "../../features/auth/authSlice";
+
+const TABS = [
+  { id: "vacancies", label: "Все вакансии", icon: Briefcase },
+  { id: "dashboard", label: "Мой кабинет", icon: LayoutDashboard },
+];
 
 export function JobsPage() {
   const { user } = useSelector((state) => state.auth);
-  const dispatch = useDispatch();
-  const [activeTab, setActiveTab] = useState('vacancies'); // 'vacancies' | 'dashboard'
-  return (
-    <div style={{ minHeight: '100vh', background: '#f8f9fa', fontFamily: 'system-ui, sans-serif' }}>
-      <Header />
-      <div style={{ maxWidth: 1100, margin: '20px auto 0', padding: '0 24px' }}>
-        {/* Переключатель вкладок */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-          <div style={{ display: 'flex', gap: 10 }}>
-            <button
-              onClick={() => setActiveTab('vacancies')}
-              style={{
-                padding: '10px 16px',
-                borderRadius: 6,
-                border: 'none',
-                cursor: 'pointer',
-                background: activeTab === 'vacancies' ? '#3498db' : '#fff',
-                color: activeTab === 'vacancies' ? '#fff' : '#333',
-                fontWeight: 600
-              }}
-            >
-              Все вакансии
-            </button>
-            <button
-              onClick={() => setActiveTab('dashboard')}
-              style={{
-                padding: '10px 16px',
-                borderRadius: 6,
-                border: 'none',
-                cursor: 'pointer',
-                background: activeTab === 'dashboard' ? '#3498db' : '#fff',
-                color: activeTab === 'dashboard' ? '#fff' : '#333',
-                fontWeight: 600
-              }}
-            >
-              Мой кабинет ({user?.role === 'employer' ? 'Работодатель' : 'Соискатель'})
-            </button>
-          </div>
-          <button
-            onClick={() => dispatch(logoutUser())}
-            style={{ padding: '8px 14px', background: '#e74c3c', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer' }}
-          >
-            Выйти
-          </button>
-        </div>
+  const [activeTab, setActiveTab] = useState("vacancies"); // 'vacancies' | 'dashboard'
 
-        {/* Контент активной вкладки */}
-        {activeTab === 'vacancies' ? (
-          <main style={{ paddingBottom: 40 }}>
-            <VacancyList />
-          </main>
-        ) : (
-          <main style={{ paddingBottom: 40 }}>
-            {user?.role === 'employer' ? <EmployerDashboard /> : <WorkerDashboard />}
-          </main>
-        )}
+  return (
+    <div className="min-h-screen">
+      <Header />
+
+      {/* Переключатель вкладок */}
+      <div className="mx-auto w-full max-w-6xl px-4 pt-6 sm:px-6">
+        <div
+          role="tablist"
+          aria-label="Разделы"
+          className="inline-flex gap-1 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-1 shadow-card"
+        >
+          {TABS.map(({ id, label, icon: Icon }) => {
+            const isActive = activeTab === id;
+            return (
+              <Button
+                key={id}
+                id={`tab-${id}`}
+                role="tab"
+                aria-selected={isActive}
+                aria-controls="jobs-panel"
+                variant={isActive ? "primary" : "ghost"}
+                onClick={() => setActiveTab(id)}
+              >
+                <Icon size={16} aria-hidden="true" />
+                {label}
+              </Button>
+            );
+          })}
+        </div>
       </div>
+
+      {/* Контент активной вкладки */}
+      <main id="jobs-panel" role="tabpanel" aria-labelledby={`tab-${activeTab}`}>
+        {activeTab === "vacancies" ? (
+          <VacancyList />
+        ) : user?.role === "employer" ? (
+          <EmployerDashboard />
+        ) : (
+          <WorkerDashboard />
+        )}
+      </main>
     </div>
   );
 }
 
-
-
-export default JobsPage; 
+export default JobsPage;
