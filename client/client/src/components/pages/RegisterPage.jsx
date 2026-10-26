@@ -3,29 +3,40 @@ import { useDispatch, useSelector } from 'react-redux';
 import { Link, useNavigate } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 import { registerUser, clearError } from '../../features/auth/authSlice';
-import { Input } from '../../components/common/Input';   // поправьте пути под вашу структуру
-import { Select } from '../../components/common/Select';
-import { Button } from '../../components/common/Button';
+import { registerSchema } from '../../lib/schemas';
+import { validate } from '../../lib/validate';
+import { Input } from '../common/Input';
+import { Select } from '../common/Select';
+import { Button } from '../common/Button';
+import { Field } from '../common/Field';
 
 export function RegisterPage() {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [role, setRole] = useState('worker');
+  const [fieldErrors, setFieldErrors] = useState({});
 
   const dispatch = useDispatch();
   const navigate = useNavigate();
 
   const { error, isLoading } = useSelector((state) => state.auth);
 
+  // Обновляет значение и сбрасывает ошибку этого поля, как только пользователь начал исправлять
+  const bind = (key, setter) => (e) => {
+    setter(e.target.value);
+    if (fieldErrors[key]) setFieldErrors((prev) => ({ ...prev, [key]: undefined }));
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
-
     dispatch(clearError());
 
-    const result = await dispatch(
-      registerUser({ name, email, password, role })
-    );
+    const { data, errors } = validate(registerSchema, { name, email, password, role });
+    setFieldErrors(errors);
+    if (!data) return;
+
+    const result = await dispatch(registerUser(data));
 
     if (registerUser.fulfilled.match(result)) {
       navigate('/');
@@ -37,9 +48,7 @@ export function RegisterPage() {
       <div className="w-full max-w-sm rounded-card border border-[var(--border)] bg-[var(--surface)] p-8 shadow-card">
         <div className="mb-6 text-center">
           <h2 className="text-2xl font-semibold tracking-tight">Регистрация</h2>
-          <p className="mt-1 text-sm text-[var(--muted)]">
-            Создайте аккаунт, чтобы начать
-          </p>
+          <p className="mt-1 text-sm text-[var(--muted)]">Создайте аккаунт, чтобы начать</p>
         </div>
 
         {error && (
@@ -51,71 +60,61 @@ export function RegisterPage() {
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-1.5">
-            <label htmlFor="name" className="text-sm font-medium">
-              Имя
-            </label>
+        {/* noValidate отключает всплывающие подсказки браузера, чтобы показывались сообщения Zod */}
+        <form onSubmit={handleSubmit} noValidate className="space-y-4">
+          <Field id="name" label="Имя" error={fieldErrors.name}>
             <Input
               id="name"
               name="name"
-              type="text"
               placeholder="Как к вам обращаться"
               autoComplete="name"
-              required
+              error={!!fieldErrors.name}
+              aria-describedby={fieldErrors.name ? 'name-error' : undefined}
               value={name}
-              onChange={(e) => setName(e.target.value)}
+              onChange={bind('name', setName)}
             />
-          </div>
+          </Field>
 
-          <div className="space-y-1.5">
-            <label htmlFor="email" className="text-sm font-medium">
-              Email
-            </label>
+          <Field id="email" label="Email" error={fieldErrors.email}>
             <Input
               id="email"
               name="email"
               type="email"
               placeholder="you@example.com"
               autoComplete="email"
-              required
+              error={!!fieldErrors.email}
+              aria-describedby={fieldErrors.email ? 'email-error' : undefined}
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              onChange={bind('email', setEmail)}
             />
-          </div>
+          </Field>
 
-          <div className="space-y-1.5">
-            <label htmlFor="password" className="text-sm font-medium">
-              Пароль
-            </label>
+          <Field id="password" label="Пароль" error={fieldErrors.password} hint="Минимум 8 символов">
             <Input
               id="password"
               name="password"
               type="password"
               placeholder="••••••••"
               autoComplete="new-password"
-              minLength={8}
-              required
+              error={!!fieldErrors.password}
+              aria-describedby={fieldErrors.password ? 'password-error' : undefined}
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              onChange={bind('password', setPassword)}
             />
-            <p className="text-xs text-[var(--muted)]">Минимум 8 символов</p>
-          </div>
+          </Field>
 
-          <div className="space-y-1.5">
-            <label htmlFor="role" className="text-sm font-medium">
-              Тип аккаунта
-            </label>
+          <Field id="role" label="Тип аккаунта" error={fieldErrors.role}>
             <Select
               id="role"
               name="role"
+              error={!!fieldErrors.role}
               value={role}
-              onChange={(e) => setRole(e.target.value)}
+              onChange={bind('role', setRole)}
             >
               <option value="worker">Соискатель</option>
               <option value="employer">Работодатель</option>
             </Select>
-          </div>
+          </Field>
 
           <Button type="submit" disabled={isLoading} className="w-full">
             {isLoading && <Loader2 size={16} className="animate-spin" aria-hidden="true" />}
@@ -125,9 +124,7 @@ export function RegisterPage() {
 
         <p className="mt-6 text-center text-sm text-[var(--muted)]">
           Уже есть аккаунт?{' '}
-          <Link to="/login" className="font-medium">
-            Войти
-          </Link>
+          <Link to="/login" className="font-medium">Войти</Link>
         </p>
       </div>
     </div>

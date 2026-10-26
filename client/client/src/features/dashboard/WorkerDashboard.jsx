@@ -2,15 +2,17 @@ import React, { useState, useEffect } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { Doughnut, Bar, Line } from 'react-chartjs-2';
 import {
-    Briefcase, FileText, Inbox, Phone, PieChart, TrendingUp, UserPen
+    Briefcase, FileText, Inbox, PieChart, TrendingUp, UserPen
 } from 'lucide-react';
 
 import { fetchDashboardData, updateWorkerResume } from './dashboardSlice';
 import { CHART_COLORS, useChartTheme, getChartOptions } from '../../lib/chart';
+import { workerResumeSchema } from '../../lib/schemas';
+import { validate } from '../../lib/validate';
 import { Loader } from '../../components/common/Loader';
-import { Input } from '../../components/common/Input';
 import { Textarea } from '../../components/common/Textarea';
 import { Button } from '../../components/common/Button';
+import { Field } from '../../components/common/Field';
 import { Panel } from '../../components/common/Panel';
 import { StatusBadge } from '../../components/common/StatusBadge';
 
@@ -24,8 +26,7 @@ export function WorkerDashboard() {
     const chartOptions = getChartOptions(chartTheme);
 
     const [resume, setResume] = useState('');
-    const [skills, setSkills] = useState('');
-    const [phone, setPhone] = useState('');
+    const [fieldErrors, setFieldErrors] = useState({});
 
     useEffect(() => {
         dispatch(fetchDashboardData());
@@ -40,31 +41,27 @@ export function WorkerDashboard() {
         user?.user?.name ||
         'Соискатель';
 
-    const hasResume = Boolean(actualWorker?.resume || resume);
-    const displayResume =
-        actualWorker?.resume ||
-        resume ||
-        'Резюме пока не заполнено.';
-
-    const skillsList = Array.isArray(actualWorker?.skills)
-        ? actualWorker.skills
-        : String(actualWorker?.skills || '').split(',').map((s) => s.trim()).filter(Boolean);
+    // В блоке «текущее резюме» показываем только сохранённый текст, а не то, что набрано в форме
+    const savedResume = actualWorker?.resume || '';
 
     // Предзаполнение формы данными из профиля при загрузке
     useEffect(() => {
-        if (actualWorker && Object.keys(actualWorker).length > 0) {
-            if (actualWorker.resume) setResume(actualWorker.resume);
-            if (actualWorker.phone) setPhone(actualWorker.phone);
-            if (actualWorker.skills) {
-                setSkills(Array.isArray(actualWorker.skills) ? actualWorker.skills.join(', ') : actualWorker.skills);
-            }
-        }
+        if (actualWorker?.resume) setResume(actualWorker.resume);
     }, [workerProfile]);
+
+    const handleChange = (e) => {
+        setResume(e.target.value);
+        if (fieldErrors.resume) setFieldErrors((prev) => ({ ...prev, resume: undefined }));
+    };
 
     const handleSubmit = (e) => {
         e.preventDefault();
-        const formattedSkills = skills.split(',').map(s => s.trim()).filter(Boolean);
-        dispatch(updateWorkerResume({ resume, skills: formattedSkills, phone }));
+
+        const { data, errors } = validate(workerResumeSchema, { resume });
+        setFieldErrors(errors);
+        if (!data) return;
+
+        dispatch(updateWorkerResume({ resume: data.resume }));
     };
 
     // Отклики текущего соискателя
@@ -202,27 +199,8 @@ export function WorkerDashboard() {
                                 Соискатель
                             </span>
                         </div>
-                        {actualWorker?.phone && (
-                            <p className="mt-1.5 inline-flex items-center gap-1.5 text-sm text-[var(--muted)]">
-                                <Phone size={15} aria-hidden="true" />
-                                {actualWorker.phone}
-                            </p>
-                        )}
                     </div>
                 </div>
-
-                {skillsList.length > 0 && (
-                    <ul className="mt-4 flex flex-wrap gap-2">
-                        {skillsList.map((skill) => (
-                            <li
-                                key={skill}
-                                className="rounded-full border border-[var(--border)] bg-[var(--bg)] px-3 py-1 text-xs font-medium"
-                            >
-                                {skill}
-                            </li>
-                        ))}
-                    </ul>
-                )}
 
                 <div className="mt-5 border-t border-[var(--border)] pt-5">
                     <h4 className="mb-2 flex items-center gap-2 text-sm font-semibold">
@@ -231,10 +209,10 @@ export function WorkerDashboard() {
                     </h4>
                     <p
                         className={`whitespace-pre-line rounded-lg border border-[var(--border)] bg-[var(--bg)] p-4 text-sm leading-relaxed ${
-                            hasResume ? '' : 'text-[var(--muted)]'
+                            savedResume ? '' : 'text-[var(--muted)]'
                         }`}
                     >
-                        {displayResume}
+                        {savedResume || 'Резюме пока не заполнено.'}
                     </p>
                 </div>
             </section>
@@ -261,45 +239,22 @@ export function WorkerDashboard() {
             </div>
 
             {/* РЕДАКТИРОВАНИЕ РЕЗЮМЕ */}
-            <Panel icon={UserPen} title="Редактировать профиль и резюме">
-                <form onSubmit={handleSubmit} className="grid gap-4 sm:grid-cols-2">
-                    <div className="space-y-1.5">
-                        <label htmlFor="worker-phone" className="text-sm font-medium">Телефон</label>
-                        <Input
-                            id="worker-phone"
-                            type="tel"
-                            autoComplete="tel"
-                            placeholder="+7 (700) 000-00-00"
-                            value={phone}
-                            onChange={(e) => setPhone(e.target.value)}
-                        />
-                    </div>
-
-                    <div className="space-y-1.5">
-                        <label htmlFor="worker-skills" className="text-sm font-medium">Навыки</label>
-                        <Input
-                            id="worker-skills"
-                            placeholder="JavaScript, React, Node.js"
-                            value={skills}
-                            onChange={(e) => setSkills(e.target.value)}
-                        />
-                        <p className="text-xs text-[var(--muted)]">Перечислите через запятую</p>
-                    </div>
-
-                    <div className="space-y-1.5 sm:col-span-2">
-                        <label htmlFor="worker-resume" className="text-sm font-medium">О себе / Опыт работы</label>
+            <Panel icon={UserPen} title="Редактировать резюме">
+                {/* noValidate отключает всплывающие подсказки браузера, чтобы показывались сообщения Zod */}
+                <form onSubmit={handleSubmit} noValidate className="space-y-4">
+                    <Field id="worker-resume" label="О себе / Опыт работы" error={fieldErrors.resume}>
                         <Textarea
                             id="worker-resume"
-                            rows={5}
+                            rows={6}
                             placeholder="Расскажите о своем опыте..."
+                            error={!!fieldErrors.resume}
+                            aria-describedby={fieldErrors.resume ? 'worker-resume-error' : undefined}
                             value={resume}
-                            onChange={(e) => setResume(e.target.value)}
+                            onChange={handleChange}
                         />
-                    </div>
+                    </Field>
 
-                    <div className="sm:col-span-2">
-                        <Button type="submit">Обновить резюме</Button>
-                    </div>
+                    <Button type="submit">Обновить резюме</Button>
                 </form>
             </Panel>
 

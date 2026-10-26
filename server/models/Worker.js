@@ -9,7 +9,7 @@ const WorkerSchema = new mongoose.Schema({
   type: mongoose.Schema.Types.ObjectId,
   ref: 'User',
   required: true,
-  unique: true // гарантирует связь 1 к 1
+  unique: true 
 }
 });
 

@@ -3,23 +3,34 @@ import { useDispatch, useSelector } from 'react-redux';
 import { Link, useNavigate } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 import { loginUser } from '../../features/auth/authSlice';
-import { Input } from '../../components/common/Input';   // поправьте пути под вашу структуру
-import { Button } from '../../components/common/Button';
+import { loginSchema } from '../../lib/schemas';
+import { validate } from '../../lib/validate';
+import { Input } from '../common/Input';
+import { Button } from '../common/Button';
+import { Field } from '../common/Field';
 
 export function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [submitting, setSubmitting] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState({});
 
   const dispatch = useDispatch();
   const navigate = useNavigate();
-  const { error } = useSelector((state) => state.auth);
+  const { error, isLoading } = useSelector((state) => state.auth);
+
+  const bind = (key, setter) => (e) => {
+    setter(e.target.value);
+    if (fieldErrors[key]) setFieldErrors((prev) => ({ ...prev, [key]: undefined }));
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setSubmitting(true);
-    const result = await dispatch(loginUser({ email, password }));
-    setSubmitting(false);
+
+    const { data, errors } = validate(loginSchema, { email, password });
+    setFieldErrors(errors);
+    if (!data) return;
+
+    const result = await dispatch(loginUser(data));
     if (loginUser.fulfilled.match(result)) {
       navigate('/');
     }
@@ -30,9 +41,7 @@ export function LoginPage() {
       <div className="w-full max-w-sm rounded-card border border-[var(--border)] bg-[var(--surface)] p-8 shadow-card">
         <div className="mb-6 text-center">
           <h2 className="text-2xl font-semibold tracking-tight">Вход</h2>
-          <p className="mt-1 text-sm text-[var(--muted)]">
-            Введите данные, чтобы продолжить
-          </p>
+          <p className="mt-1 text-sm text-[var(--muted)]">Введите данные, чтобы продолжить</p>
         </div>
 
         {error && (
@@ -44,54 +53,48 @@ export function LoginPage() {
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-1.5">
-            <label htmlFor="email" className="text-sm font-medium">
-              Email
-            </label>
+        <form onSubmit={handleSubmit} noValidate className="space-y-4">
+          <Field id="email" label="Email" error={fieldErrors.email}>
             <Input
               id="email"
               name="email"
               type="email"
               placeholder="you@example.com"
               autoComplete="email"
-              required
-              error={!!error}
+              error={!!fieldErrors.email || !!error}
+              aria-describedby={fieldErrors.email ? 'email-error' : undefined}
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              onChange={bind('email', setEmail)}
             />
-          </div>
+          </Field>
 
-          <div className="space-y-1.5">
-            <label htmlFor="password" className="text-sm font-medium">
-              Пароль
-            </label>
+          <Field id="password" label="Пароль" error={fieldErrors.password}>
             <Input
               id="password"
               name="password"
               type="password"
               placeholder="••••••••"
               autoComplete="current-password"
-              required
-              error={!!error}
+              error={!!fieldErrors.password || !!error}
+              aria-describedby={fieldErrors.password ? 'password-error' : undefined}
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              onChange={bind('password', setPassword)}
             />
-          </div>
+          </Field>
 
-          <Button type="submit" disabled={submitting} className="w-full">
-            {submitting && <Loader2 size={16} className="animate-spin" aria-hidden="true" />}
-            {submitting ? 'Входим...' : 'Войти'}
+          <Button type="submit" disabled={isLoading} className="w-full">
+            {isLoading && <Loader2 size={16} className="animate-spin" aria-hidden="true" />}
+            {isLoading ? 'Входим...' : 'Войти'}
           </Button>
         </form>
 
         <p className="mt-6 text-center text-sm text-[var(--muted)]">
           Нет аккаунта?{' '}
-          <Link to="/register" className="font-medium">
-            Зарегистрироваться
-          </Link>
+          <Link to="/register" className="font-medium">Зарегистрироваться</Link>
         </p>
       </div>
     </div>
   );
 }
+
+export default LoginPage;

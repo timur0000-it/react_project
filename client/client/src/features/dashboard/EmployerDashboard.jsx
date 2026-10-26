@@ -19,11 +19,13 @@ import { Input } from '../../components/common/Input';
 import { Select } from '../../components/common/Select';
 import { Textarea } from '../../components/common/Textarea';
 import { Button } from '../../components/common/Button';
+import { Field } from '../../components/common/Field';
 import { Panel } from '../../components/common/Panel';
 import { StatusBadge } from '../../components/common/StatusBadge';
 import { CHART_COLORS, useChartTheme, getChartOptions } from '../../lib/chart';
+import { vacancySchema, EXPERIENCE_OPTIONS } from '../../lib/schemas';
+import { validate } from '../../lib/validate';
 
-const EXPERIENCE_OPTIONS = ['Без опыта', '1–3 года', '3–5 лет', 'Более 5 лет'];
 const EMPLOYER_STATUS_LABELS = { accepted: 'Принято (Приглашение)' };
 
 export function EmployerDashboard() {
@@ -41,6 +43,7 @@ export function EmployerDashboard() {
     const [salary, setSalary] = useState('');
     const [experience, setExperience] = useState('Без опыта');
     const [editingId, setEditingId] = useState(null);
+    const [fieldErrors, setFieldErrors] = useState({});
 
     useEffect(() => {
         dispatch(fetchDashboardData());
@@ -186,6 +189,12 @@ export function EmployerDashboard() {
     // ОБРАБОТЧИКИ
     // ==========================================
 
+    // Обновляет значение поля и сбрасывает его ошибку, как только пользователь начал исправлять
+    const bind = (key, setter) => (e) => {
+        setter(e.target.value);
+        if (fieldErrors[key]) setFieldErrors((prev) => ({ ...prev, [key]: undefined }));
+    };
+
     const resetForm = () => {
         setEditingId(null);
         setTitle('');
@@ -193,13 +202,17 @@ export function EmployerDashboard() {
         setCity('');
         setSalary('');
         setExperience('Без опыта');
+        setFieldErrors({});
     };
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        if (!title || !city || !salary) return;
 
-        const vacancyData = { title, description, city, salary: Number(salary), experience };
+        const { data: vacancyData, errors } = validate(vacancySchema, {
+            title, city, salary, experience, description,
+        });
+        setFieldErrors(errors);
+        if (!vacancyData) return;
 
         if (editingId) {
             await dispatch(updateVacancy({ id: editingId, vacancyData }));
@@ -219,6 +232,7 @@ export function EmployerDashboard() {
         setCity(vacancy.city);
         setSalary(vacancy.salary);
         setExperience(vacancy.experience);
+        setFieldErrors({});
         // форма находится ниже списка, поэтому прокручиваем к ней
         formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     };
@@ -387,65 +401,69 @@ export function EmployerDashboard() {
                     icon={editingId ? Pencil : PlusCircle}
                     title={editingId ? 'Редактировать вакансию' : 'Создать новую вакансию'}
                 >
-                    <form onSubmit={handleSubmit} className="grid gap-4 sm:grid-cols-2">
-                        <div className="space-y-1.5">
-                            <label htmlFor="vacancy-title" className="text-sm font-medium">Название должности</label>
+                    {/* noValidate отключает всплывающие подсказки браузера, чтобы показывались сообщения Zod */}
+                    <form onSubmit={handleSubmit} noValidate className="grid gap-4 sm:grid-cols-2">
+                        <Field id="vacancy-title" label="Название должности" error={fieldErrors.title}>
                             <Input
                                 id="vacancy-title"
                                 placeholder="Например, Frontend-разработчик"
+                                error={!!fieldErrors.title}
+                                aria-describedby={fieldErrors.title ? 'vacancy-title-error' : undefined}
                                 value={title}
-                                onChange={(e) => setTitle(e.target.value)}
-                                required
+                                onChange={bind('title', setTitle)}
                             />
-                        </div>
+                        </Field>
 
-                        <div className="space-y-1.5">
-                            <label htmlFor="vacancy-city" className="text-sm font-medium">Город</label>
+                        <Field id="vacancy-city" label="Город" error={fieldErrors.city}>
                             <Input
                                 id="vacancy-city"
                                 placeholder="Караганда"
+                                error={!!fieldErrors.city}
+                                aria-describedby={fieldErrors.city ? 'vacancy-city-error' : undefined}
                                 value={city}
-                                onChange={(e) => setCity(e.target.value)}
-                                required
+                                onChange={bind('city', setCity)}
                             />
-                        </div>
+                        </Field>
 
-                        <div className="space-y-1.5">
-                            <label htmlFor="vacancy-salary" className="text-sm font-medium">Зарплата (₸)</label>
+                        <Field id="vacancy-salary" label="Зарплата (₸)" error={fieldErrors.salary}>
                             <Input
                                 id="vacancy-salary"
                                 type="number"
                                 min="0"
                                 inputMode="numeric"
                                 placeholder="300000"
+                                error={!!fieldErrors.salary}
+                                aria-describedby={fieldErrors.salary ? 'vacancy-salary-error' : undefined}
                                 value={salary}
-                                onChange={(e) => setSalary(e.target.value)}
-                                required
+                                onChange={bind('salary', setSalary)}
                             />
-                        </div>
+                        </Field>
 
-                        <div className="space-y-1.5">
-                            <label htmlFor="vacancy-experience" className="text-sm font-medium">Опыт работы</label>
+                        <Field id="vacancy-experience" label="Опыт работы" error={fieldErrors.experience}>
                             <Select
                                 id="vacancy-experience"
+                                error={!!fieldErrors.experience}
                                 value={experience}
-                                onChange={(e) => setExperience(e.target.value)}
+                                onChange={bind('experience', setExperience)}
                             >
                                 {EXPERIENCE_OPTIONS.map((opt) => (
                                     <option key={opt} value={opt}>{opt}</option>
                                 ))}
                             </Select>
-                        </div>
+                        </Field>
 
-                        <div className="space-y-1.5 sm:col-span-2">
-                            <label htmlFor="vacancy-description" className="text-sm font-medium">Описание вакансии</label>
-                            <Textarea
-                                id="vacancy-description"
-                                rows={4}
-                                placeholder="Обязанности, требования, условия"
-                                value={description}
-                                onChange={(e) => setDescription(e.target.value)}
-                            />
+                        <div className="sm:col-span-2">
+                            <Field id="vacancy-description" label="Описание вакансии" error={fieldErrors.description}>
+                                <Textarea
+                                    id="vacancy-description"
+                                    rows={4}
+                                    placeholder="Обязанности, требования, условия"
+                                    error={!!fieldErrors.description}
+                                    aria-describedby={fieldErrors.description ? 'vacancy-description-error' : undefined}
+                                    value={description}
+                                    onChange={bind('description', setDescription)}
+                                />
+                            </Field>
                         </div>
 
                         <div className="flex flex-wrap gap-3 sm:col-span-2">
