@@ -15,12 +15,14 @@ import { Button } from '../../components/common/Button';
 import { Field } from '../../components/common/Field';
 import { Panel } from '../../components/common/Panel';
 import { StatusBadge } from '../../components/common/StatusBadge';
+import { toast } from 'sonner';
+import { getRequestError } from '../../lib/getRequestError';
 
 const WORKER_STATUS_LABELS = { accepted: 'Приглашение', rejected: 'Отказ' };
 
 export function WorkerDashboard() {
     const dispatch = useDispatch();
-    const { responses, vacancies, workerProfile, status, error, actionError } = useSelector((state) => state.dashboard);
+    const { responses, vacancies, workerProfile, status, } = useSelector((state) => state.dashboard);
     const { user } = useSelector((state) => state.auth);
     const chartTheme = useChartTheme();
     const chartOptions = getChartOptions(chartTheme);
@@ -29,7 +31,16 @@ export function WorkerDashboard() {
     const [fieldErrors, setFieldErrors] = useState({});
 
     useEffect(() => {
-        dispatch(fetchDashboardData());
+        dispatch(fetchDashboardData())
+            .unwrap()
+            .catch((error) => {
+                toast.error(
+                    getRequestError(
+                        error,
+                        'Не удалось загрузить кабинет соискателя'
+                    )
+                );
+            });
     }, [dispatch]);
 
     const actualWorker = workerProfile?.worker || workerProfile || {};
@@ -54,16 +65,34 @@ export function WorkerDashboard() {
         if (fieldErrors.resume) setFieldErrors((prev) => ({ ...prev, resume: undefined }));
     };
 
-    const handleSubmit = (e) => {
-        e.preventDefault();
+const handleSubmit = async (e) => {
+    e.preventDefault();
 
-        const { data, errors } = validate(workerResumeSchema, { resume });
-        setFieldErrors(errors);
-        if (!data) return;
+    const { data, errors } = validate(
+        workerResumeSchema,
+        { resume }
+    );
 
-        dispatch(updateWorkerResume({ resume: data.resume }));
-    };
+    setFieldErrors(errors);
 
+    // Ошибки валидации уже отображаются у полей
+    if (!data) return;
+
+    try {
+        await dispatch(
+            updateWorkerResume({ resume: data.resume })
+        ).unwrap();
+
+        toast.success('Резюме успешно обновлено');
+    } catch (error) {
+        toast.error(
+            getRequestError(
+                error,
+                'Не удалось обновить резюме'
+            )
+        );
+    }
+};
     // Отклики текущего соискателя
     const myResponses = responses.filter(r => {
         const workerId = typeof r.worker === 'object' ? r.worker?._id : r.worker;
@@ -174,14 +203,7 @@ export function WorkerDashboard() {
 
     return (
         <div className="mx-auto w-full max-w-6xl space-y-6 px-4 py-8 sm:px-6">
-            {(error || actionError) && (
-                <div
-                    role="alert"
-                    className="rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-600 dark:text-red-400"
-                >
-                    Ошибка: {error || actionError}
-                </div>
-            )}
+
 
             {/* ПРОФИЛЬ И ТЕКУЩЕЕ РЕЗЮМЕ */}
             <section className="rounded-card border border-[var(--border)] bg-[var(--surface)] p-6 shadow-card">

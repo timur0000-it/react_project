@@ -3,11 +3,25 @@ import { useSelector, useDispatch } from 'react-redux';
 import { logoutUser } from '../../features/auth/authSlice';
 import { Briefcase, UserCheck, LogOut } from 'lucide-react';
 import { Button } from '../../components/common/Button';
+import { toast } from 'sonner';
+import { getRequestError } from '../../lib/getRequestError';
+
 
 export function Header({ activeTab, setActiveTab }) {
   const dispatch = useDispatch();
   const { user } = useSelector((state) => state.auth);
 
+  const handleLogout = async () => {
+    try {
+        await dispatch(logoutUser()).unwrap();
+
+        toast.success('Вы вышли из аккаунта');
+    } catch (error) {
+        toast.error(
+            getRequestError(error, 'Не удалось выйти из аккаунта')
+        );
+    }
+};
   return (
     <header className="sticky top-0 z-10 border-b border-[var(--border)] bg-[color-mix(in_srgb,var(--bg)_85%,transparent)] backdrop-blur">
       <div className="mx-auto flex h-16 w-full max-w-6xl items-center justify-between gap-4 px-4 sm:px-6">
@@ -49,7 +63,7 @@ export function Header({ activeTab, setActiveTab }) {
 
           <Button
             variant="danger-soft"
-            onClick={() => dispatch(logoutUser())}
+            onClick={handleLogout}
             title="Выйти из аккаунта"
             aria-label="Выйти из аккаунта"
           >

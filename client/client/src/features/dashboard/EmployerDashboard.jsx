@@ -25,7 +25,8 @@ import { StatusBadge } from '../../components/common/StatusBadge';
 import { CHART_COLORS, useChartTheme, getChartOptions } from '../../lib/chart';
 import { vacancySchema, EXPERIENCE_OPTIONS } from '../../lib/schemas';
 import { validate } from '../../lib/validate';
-
+import { toast } from 'sonner';
+import { getRequestError } from '../../lib/getRequestError';
 const EMPLOYER_STATUS_LABELS = { accepted: 'Принято (Приглашение)' };
 
 export function EmployerDashboard() {
@@ -44,11 +45,19 @@ export function EmployerDashboard() {
     const [experience, setExperience] = useState('Без опыта');
     const [editingId, setEditingId] = useState(null);
     const [fieldErrors, setFieldErrors] = useState({});
-
-    useEffect(() => {
-        dispatch(fetchDashboardData());
-    }, [dispatch]);
-
+    
+useEffect(() => {
+    dispatch(fetchDashboardData())
+        .unwrap()
+        .catch((error) => {
+            toast.error(
+                getRequestError(
+                    error,
+                    'Не удалось загрузить панель работодателя'
+                )
+            );
+        });
+}, [dispatch]);
     // Извлекаем профиль работодателя с учетом вложенностей
     const actualEmployer = employerProfile?.employer || employerProfile || {};
 
@@ -205,25 +214,54 @@ export function EmployerDashboard() {
         setFieldErrors({});
     };
 
-    const handleSubmit = async (e) => {
-        e.preventDefault();
+const handleSubmit = async (e) => {
+    e.preventDefault();
 
-        const { data: vacancyData, errors } = validate(vacancySchema, {
-            title, city, salary, experience, description,
-        });
-        setFieldErrors(errors);
-        if (!vacancyData) return;
+    const { data: vacancyData, errors } = validate(
+        vacancySchema,
+        { title, city, salary, experience, description }
+    );
 
-        if (editingId) {
-            await dispatch(updateVacancy({ id: editingId, vacancyData }));
+    setFieldErrors(errors);
+
+    if (!vacancyData) return;
+
+    const isEditing = Boolean(editingId);
+
+    try {
+        if (isEditing) {
+            await dispatch(
+                updateVacancy({
+                    id: editingId,
+                    vacancyData,
+                })
+            ).unwrap();
+
+            toast.success('Вакансия успешно обновлена');
         } else {
-            await dispatch(createVacancy(vacancyData));
+            await dispatch(
+                createVacancy(vacancyData)
+            ).unwrap();
+
+            toast.success('Вакансия успешно опубликована');
         }
 
+        // Обновляем данные после успешной операции
         dispatch(fetchDashboardData());
         dispatch(fetchVacancies());
+
         resetForm();
-    };
+    } catch (error) {
+        toast.error(
+            getRequestError(
+                error,
+                isEditing
+                    ? 'Не удалось обновить вакансию'
+                    : 'Не удалось создать вакансию'
+            )
+        );
+    }
+};
 
     const handleEdit = (vacancy) => {
         setEditingId(vacancy._id);
@@ -238,10 +276,36 @@ export function EmployerDashboard() {
     };
 
     const handleDelete = async (id) => {
-        await dispatch(deleteVacancy(id));
-        dispatch(fetchDashboardData());
-        dispatch(fetchVacancies());
+        try {
+            await dispatch(deleteVacancy(id)).unwrap();
+
+            toast.success('Вакансия успешно удалена');
+
+            dispatch(fetchDashboardData());
+            dispatch(fetchVacancies());
+        } catch (error) {
+            toast.error(
+                getRequestError(error, 'Не удалось удалить вакансию')
+            );
+        }
     };
+    const handleResponseStatus = async (responseId, status) => {
+    try {
+        await dispatch(
+            updateResponseStatus({ responseId, status })
+        ).unwrap();
+
+        toast.success(
+            status === 'accepted'
+                ? 'Отклик принят'
+                : 'Отклик отклонён'
+        );
+    } catch (error) {
+        toast.error(
+            getRequestError(error, 'Не удалось изменить статус отклика')
+        );
+    }
+};
 
     if (status === 'loading' && vacancies.length === 0) {
         return <Loader label="Загрузка панели аналитики..." />;
@@ -373,7 +437,7 @@ export function EmployerDashboard() {
                                             size="sm"
                                             variant="success"
                                             disabled={resp.status === 'accepted'}
-                                            onClick={() => dispatch(updateResponseStatus({ responseId: resp._id, status: 'accepted' }))}
+                                            onClick={() => handleResponseStatus(resp._id, 'accepted')}
                                         >
                                             <Check size={14} aria-hidden="true" />
                                             Принять
@@ -382,7 +446,7 @@ export function EmployerDashboard() {
                                             size="sm"
                                             variant="danger-soft"
                                             disabled={resp.status === 'rejected'}
-                                            onClick={() => dispatch(updateResponseStatus({ responseId: resp._id, status: 'rejected' }))}
+                                            onClick={() => handleResponseStatus(resp._id, 'rejected')}
                                         >
                                             <X size={14} aria-hidden="true" />
                                             Отклонить

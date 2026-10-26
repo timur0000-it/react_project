@@ -29,18 +29,24 @@ export const loginUser = createAsyncThunk(
 
 // 3. ASYNC THUNK: ТИХОЕ ОБНОВЛЕНИЕ СЕССИИ ПРИ ПЕРЕЗАГРУЗКЕ СТРАНИЦЫ
 export const checkAuth = createAsyncThunk(
-  'auth/check',
-  async (_, { rejectWithValue }) => {
-    try {
-      
-      const response = await api.get('/auth/refresh');
-      return response.data;
-    } catch (error) {
-      return rejectWithValue('Неавторизован');
+    'auth/check',
+    async (_, { rejectWithValue }) => {
+        try {
+            const response = await api.get('/auth/refresh');
+            return response.data;
+        } catch (error) {
+            return rejectWithValue(
+                error.response?.data?.message || 'Неавторизован'
+            );
+        }
+    },
+    {
+        // Не запускаем повторную проверку, пока первая не завершилась
+        condition: (_, { getState }) => {
+            return getState().auth.authCheckStatus === 'idle';
+        },
     }
-  }
 );
-
 // 4. ASYNC THUNK: ВЫХОД
 export const logoutUser = createAsyncThunk(
   'auth/logout',
@@ -59,6 +65,7 @@ const authSlice = createSlice({
     accessToken: null, 
     isLoading: true,    // Идет ли первичная проверка сессии
     error: null,
+    authCheckStatus: 'idle',
   },
   reducers: {
     clearError: (state) => {
@@ -99,20 +106,22 @@ const authSlice = createSlice({
       state.error = action.payload || 'Ошибка входа';
     })
 
-    // Восстановление сессии
     .addCase(checkAuth.pending, (state) => {
-      state.isLoading = true;
+        state.authCheckStatus = 'loading';
+        state.isLoading = true;
     })
     .addCase(checkAuth.fulfilled, (state, action) => {
-      state.user = action.payload.user;
-      state.accessToken = action.payload.accessToken;
-      state.isLoading = false;
-      state.error = null;
+        state.authCheckStatus = 'succeeded';
+        state.user = action.payload.user;
+        state.accessToken = action.payload.accessToken;
+        state.isLoading = false;
+        state.error = null;
     })
     .addCase(checkAuth.rejected, (state) => {
-      state.user = null;
-      state.accessToken = null;
-      state.isLoading = false;
+        state.authCheckStatus = 'failed';
+        state.user = null;
+        state.accessToken = null;
+        state.isLoading = false;
     })
 
     // Выход

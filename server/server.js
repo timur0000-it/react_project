@@ -310,7 +310,15 @@ app.get('/api/auth/refresh', async (req, res) => {
       });
     }
 
-    const tokens = generateTokens(user);
+    let profile = null;
+
+    if (user.role === 'employer') {
+        profile = await Employer.findOne({ user: user._id }).select('_id');
+    } else if (user.role === 'worker') {
+        profile = await Worker.findOne({ user: user._id }).select('_id');
+    }
+
+    const tokens = generateTokens(user, profile?._id);
 
     // Выдаём новую пару токенов.
     setRefreshCookie(res, tokens.refreshToken);

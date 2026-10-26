@@ -6,7 +6,7 @@ import { RegisterPage } from './components/pages/RegisterPage';
 import { JobsPage } from './components/pages/JobsPage';
 import { LoginPage } from './components/pages/LoginPage';
 import { ProtectedRoute } from './components/layout/ProtectedRoutes';
-
+import { Toaster } from 'sonner';
 function App() {
   const dispatch = useDispatch();
 
@@ -16,15 +16,23 @@ function App() {
   }, [dispatch]);
 
   return (
-    <Routes>
+    
+    <>
+        <Toaster
+      position="top-right" richColors closeButton duration={4000}/>
+        <Routes>
+
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
       <Route element={<ProtectedRoute />}>
+
         <Route path="/" element={<JobsPage />} />
       </Route>
       {/* Любой неизвестный адрес ведёт на главную (если не авторизован, ProtectedRoute отправит на /login) */}
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
+    </>
+
   );
 }
 

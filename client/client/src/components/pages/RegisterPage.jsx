@@ -9,7 +9,8 @@ import { Input } from '../common/Input';
 import { Select } from '../common/Select';
 import { Button } from '../common/Button';
 import { Field } from '../common/Field';
-
+import { toast } from 'sonner';
+import { getRequestError } from '../../lib/getRequestError';
 export function RegisterPage() {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -20,28 +21,42 @@ export function RegisterPage() {
   const dispatch = useDispatch();
   const navigate = useNavigate();
 
-  const { error, isLoading } = useSelector((state) => state.auth);
-
+const { isLoading } = useSelector((state) => state.auth);
   // Обновляет значение и сбрасывает ошибку этого поля, как только пользователь начал исправлять
   const bind = (key, setter) => (e) => {
     setter(e.target.value);
     if (fieldErrors[key]) setFieldErrors((prev) => ({ ...prev, [key]: undefined }));
   };
 
-  const handleSubmit = async (e) => {
+const handleSubmit = async (e) => {
     e.preventDefault();
     dispatch(clearError());
 
-    const { data, errors } = validate(registerSchema, { name, email, password, role });
+    const { data, errors } = validate(
+        registerSchema,
+        { name, email, password, role }
+    );
+
     setFieldErrors(errors);
+
+    // Ошибки валидации показываем рядом с полями
     if (!data) return;
 
-    const result = await dispatch(registerUser(data));
+    try {
+        await dispatch(registerUser(data)).unwrap();
 
-    if (registerUser.fulfilled.match(result)) {
-      navigate('/');
+        toast.success('Аккаунт успешно создан');
+
+        navigate('/');
+    } catch (error) {
+        toast.error(
+            getRequestError(
+                error,
+                'Не удалось зарегистрировать аккаунт'
+            )
+        );
     }
-  };
+};
 
   return (
     <div className="flex min-h-screen items-center justify-center px-4 py-10">
@@ -51,16 +66,8 @@ export function RegisterPage() {
           <p className="mt-1 text-sm text-[var(--muted)]">Создайте аккаунт, чтобы начать</p>
         </div>
 
-        {error && (
-          <div
-            role="alert"
-            className="mb-4 rounded-lg border border-red-500/30 bg-red-500/10 px-3.5 py-2.5 text-sm text-red-600 dark:text-red-400"
-          >
-            {error}
-          </div>
-        )}
 
-        {/* noValidate отключает всплывающие подсказки браузера, чтобы показывались сообщения Zod */}
+
         <form onSubmit={handleSubmit} noValidate className="space-y-4">
           <Field id="name" label="Имя" error={fieldErrors.name}>
             <Input

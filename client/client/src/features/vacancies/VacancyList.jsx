@@ -8,6 +8,8 @@ import { Input } from "../../components/common/Input";
 import { Select } from "../../components/common/Select";
 import { Button } from "../../components/common/Button";
 import { VacancyCard } from "./VacancyCard";
+import { toast } from "sonner";
+import { getRequestError } from "../../lib/getRequestError";
 
 export function VacancyList() {
     const dispatch = useDispatch();
@@ -15,16 +17,40 @@ export function VacancyList() {
     const { responses } = useSelector((state) => state.dashboard);
     const { user } = useSelector((state) => state.auth);
 
+    // Загрузка списка вакансий
     useEffect(() => {
-        if (status === 'idle') {
+        if (status === "idle") {
             dispatch(fetchVacancies());
         }
-        dispatch(fetchDashboardData());
     }, [status, dispatch]);
 
-    const handleApply = (vacancyId) => {
-        dispatch(applyToVacancy(vacancyId));
-    };
+    // Загрузка откликов соискателя
+    useEffect(() => {
+        dispatch(fetchDashboardData())
+            .unwrap()
+            .catch((error) => {
+                toast.error(
+                    getRequestError(
+                        error,
+                        "Не удалось загрузить ваши отклики"
+                    )
+                );
+            });
+    }, [dispatch]);
+const handleApply = async (vacancyId) => {
+    try {
+        await dispatch(applyToVacancy(vacancyId)).unwrap();
+
+        toast.success("Вы успешно откликнулись на вакансию");
+    } catch (error) {
+        toast.error(
+            getRequestError(
+                error,
+                "Не удалось откликнуться на вакансию"
+            )
+        );
+    }
+};
 
     // Множество ID вакансий, на которые соискатель уже откликнулся
     const myAppliedVacancyIds = new Set(
