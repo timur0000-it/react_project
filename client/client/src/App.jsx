@@ -6,6 +6,7 @@ import { RegisterPage } from './components/pages/RegisterPage';
 import { JobsPage } from './components/pages/JobsPage';
 import { LoginPage } from './components/pages/LoginPage';
 import { ProtectedRoute } from './components/layout/ProtectedRoutes';
+import { NotFoundPage } from './components/pages/NotFoundPage';
 import { Toaster } from 'sonner';
 function App() {
   const dispatch = useDispatch();
@@ -29,7 +30,7 @@ function App() {
         <Route path="/" element={<JobsPage />} />
       </Route>
       {/* Любой неизвестный адрес ведёт на главную (если не авторизован, ProtectedRoute отправит на /login) */}
-      <Route path="*" element={<Navigate to="/" replace />} />
+      <Route path="*" element={<NotFoundPage />} />
     </Routes>
     </>
 
