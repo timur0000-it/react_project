@@ -1,6 +1,6 @@
 import { useDispatch, useSelector } from "react-redux";
+import { useState } from 'react';
 import { SearchX, X } from "lucide-react";
-import { setSearchQuery, setMinSalary, setExperienceFilter, resetFilters } from "./vacanciesSlice";
 import { applyToVacancy } from "../dashboard/dashboardSlice";
 import { Loader } from "../../components/common/Loader";
 import { Input } from "../../components/common/Input";
@@ -10,7 +10,13 @@ import { VacancyCard } from "./VacancyCard";
 
 export function VacancyList() {
     const dispatch = useDispatch();
-    const { items, status, error, searchQuery, minSalary, experienceFilter } = useSelector((state) => state.vacancies);
+    const { items, status, error } = useSelector(
+    (state) => state.vacancies
+    );
+
+    const [searchQuery, setSearchQuery] = useState('');
+    const [minSalary, setMinSalary] = useState('');
+    const [experienceFilter, setExperienceFilter] = useState('Все');
     const { responses } = useSelector((state) => state.dashboard);
     const { user } = useSelector((state) => state.auth);
 
@@ -55,7 +61,7 @@ export function VacancyList() {
                             id="search"
                             placeholder="Название или город..."
                             value={searchQuery}
-                            onChange={(e) => dispatch(setSearchQuery(e.target.value))}
+                            onChange={(e) => setSearchQuery(e.target.value)}
                         />
                     </div>
 
@@ -68,7 +74,7 @@ export function VacancyList() {
                             inputMode="numeric"
                             placeholder="От..."
                             value={minSalary}
-                            onChange={(e) => dispatch(setMinSalary(e.target.value))}
+                            onChange={(e) => setMinSalary(e.target.value)}
                         />
                     </div>
 
@@ -77,7 +83,7 @@ export function VacancyList() {
                         <Select
                             id="experience"
                             value={experienceFilter}
-                            onChange={(e) => dispatch(setExperienceFilter(e.target.value))}
+                            onChange={(e) => setExperienceFilter(e.target.value)}
                         >
                             <option value="Все">Все варианты</option>
                             <option value="Без опыта">Без опыта</option>
@@ -94,7 +100,14 @@ export function VacancyList() {
                     </p>
 
                     {hasActiveFilters && (
-                        <Button variant="ghost" onClick={() => dispatch(resetFilters())}>
+                        <Button
+                            variant="ghost"
+                            onClick={() => {
+                                setSearchQuery('');
+                                setMinSalary('');
+                                setExperienceFilter('Все');
+                            }}
+                        >
                             <X size={16} aria-hidden="true" />
                             Сбросить фильтры
                         </Button>

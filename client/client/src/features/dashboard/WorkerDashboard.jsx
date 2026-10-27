@@ -33,7 +33,7 @@ export function WorkerDashboard() {
 
     const displayName = user?.name || 'Соискатель';
 
-    // В блоке «текущее резюме» показываем только сохранённый текст, а не то, что набрано в форме
+    // В блоке текущее резюме показываем только сохранённый текст, а не то, что набрано в форме
     const savedResume = profile?.resume || '';
 
     // Когда форма открывается, прокручиваем к ней
@@ -75,15 +75,9 @@ export function WorkerDashboard() {
     // Сервер отдаёт соискателю только его собственные отклики
     const myResponses = responses;
 
-    // ==========================================
-    // МЕМОИЗИРОВАННЫЕ ДАННЫЕ ДЛЯ ГРАФИКОВ
-    // Пересчитываются только при смене своих зависимостей,
-    // а не при вводе текста в форму резюме
-    // ==========================================
-
     const chartOptions = useMemo(() => getChartOptions(chartTheme), [chartTheme]);
 
-    // На оси зарплат нужны разделители разрядов
+    // разделители цифр не 300000 а 300 000
     const salaryChartOptions = useMemo(() => ({
         ...chartOptions.axis,
         scales: {
@@ -269,7 +263,7 @@ export function WorkerDashboard() {
                 </div>
             )}
 
-            {/* АНАЛИТИКА (3 ГРАФИКА) */}
+            {/* (3 ГРАФИКА) */}
             <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
                 <Panel icon={PieChart} title="Воронка статусов">
                     <div className="h-64 w-full">

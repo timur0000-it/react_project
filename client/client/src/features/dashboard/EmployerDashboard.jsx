@@ -2,8 +2,7 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { Doughnut, Bar, Line } from 'react-chartjs-2';
 import {
-    Briefcase, Building2, Check, FileText, Inbox, Mail, Pencil,
-    Phone, PieChart, PlusCircle, Trash2, TrendingUp, Wallet, X
+    Briefcase, Check, FileText, Inbox, Mail, Pencil, PieChart, PlusCircle, Trash2, TrendingUp, Wallet, X
 } from 'lucide-react';
 
 import { updateResponseStatus } from './dashboardSlice';
@@ -24,7 +23,7 @@ const EMPLOYER_STATUS_LABELS = { accepted: 'Принято (Приглашени
 
 export function EmployerDashboard() {
     const dispatch = useDispatch();
-    const { responses, profile, status, error, actionError } = useSelector((state) => state.dashboard);
+    const { responses, status, error, actionError } = useSelector((state) => state.dashboard);
     const vacancies = useSelector((state) => state.vacancies.items);
     const vacanciesStatus = useSelector((state) => state.vacancies.status);
     const { user } = useSelector((state) => state.auth);
@@ -48,19 +47,9 @@ export function EmployerDashboard() {
         }
     }, [isFormOpen, editingId]);
 
-    const employer = profile || {};
-    const displayName = user?.name || employer.companyName || 'Работодатель';
-    const companyName = employer.companyName || 'Компания не указана';
-    const companyPhone = employer.phone || 'Не указан';
+    const displayName = user?.name || 'Работодатель';
 
-    // Сервер отдаёт в откликах только отклики на вакансии работодателя
     const myResponses = responses;
-
-    // ==========================================
-    // МЕМОИЗИРОВАННЫЕ ДАННЫЕ ДЛЯ ГРАФИКОВ
-    // Пересчитываются только при смене своих зависимостей,
-    // а не при вводе текста в форму
-    // ==========================================
 
     const myVacancies = useMemo(
         () => vacancies.filter((v) => String(v.employer?._id || v.employer) === String(user?.profileId)),

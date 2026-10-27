@@ -60,21 +60,6 @@ const vacanciesSlice = createSlice({
         ...initialFilters,
     },
 
-    reducers: {
-        setSearchQuery: (state, action) => {
-            state.searchQuery = action.payload;
-        },
-        setMinSalary: (state, action) => {
-            state.minSalary = action.payload;
-        },
-        setExperienceFilter: (state, action) => {
-            state.experienceFilter = action.payload;
-        },
-        resetFilters: (state) => {
-            Object.assign(state, initialFilters);
-        },
-    },
-
     extraReducers: (builder) => {
         builder
             // Загрузка вакансий
@@ -113,12 +98,5 @@ const vacanciesSlice = createSlice({
             });
     },
 });
-
-export const {
-    setSearchQuery,
-    setMinSalary,
-    setExperienceFilter,
-    resetFilters,
-} = vacanciesSlice.actions;
 
 export default vacanciesSlice.reducer;
