@@ -23,7 +23,7 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-// Обновление токена при ошибке 401 (вызывает /auth/refresh при 401) а если не 401 возвращает ошибку
+// Обновление токена при ошибке 401 (вызывает /auth/refresh при 401) а если не 401 возвращает ошибок
 let refreshing = null;
 
 api.interceptors.response.use(

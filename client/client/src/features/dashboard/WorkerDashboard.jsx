@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { Doughnut, Bar, Line } from 'react-chartjs-2';
 import {
@@ -25,7 +25,6 @@ export function WorkerDashboard() {
     const vacanciesStatus = useSelector((state) => state.vacancies.status);
     const { user } = useSelector((state) => state.auth);
     const chartTheme = useChartTheme();
-    const chartOptions = getChartOptions(chartTheme);
     const formRef = useRef(null);
 
     const [isEditing, setIsEditing] = useState(false);
@@ -77,33 +76,57 @@ export function WorkerDashboard() {
     const myResponses = responses;
 
     // ==========================================
-    // АНАЛИТИКА И ДАННЫЕ ДЛЯ ГРАФИКОВ
+    // МЕМОИЗИРОВАННЫЕ ДАННЫЕ ДЛЯ ГРАФИКОВ
+    // Пересчитываются только при смене своих зависимостей,
+    // а не при вводе текста в форму резюме
     // ==========================================
 
-    const pendingCount = myResponses.filter(r => r.status === 'pending' || !r.status).length;
-    const acceptedCount = myResponses.filter(r => r.status === 'accepted').length;
-    const rejectedCount = myResponses.filter(r => r.status === 'rejected').length;
+    const chartOptions = useMemo(() => getChartOptions(chartTheme), [chartTheme]);
+
+    // На оси зарплат нужны разделители разрядов
+    const salaryChartOptions = useMemo(() => ({
+        ...chartOptions.axis,
+        scales: {
+            ...chartOptions.axis.scales,
+            y: {
+                ...chartOptions.axis.scales.y,
+                ticks: {
+                    ...chartOptions.axis.scales.y.ticks,
+                    callback: (v) => Number(v).toLocaleString('ru-RU'),
+                },
+            },
+        },
+    }), [chartOptions]);
 
     // 1. Статусы откликов (Doughnut)
-    const responseStatusChartData = {
-        labels: ['На рассмотрении', 'Приглашения', 'Отказы'],
-        datasets: [
-            {
-                data: [pendingCount, acceptedCount, rejectedCount],
-                backgroundColor: [CHART_COLORS.pending, CHART_COLORS.accepted, CHART_COLORS.rejected],
-                borderColor: chartTheme.surface,
-                borderWidth: 3,
-            },
-        ],
-    };
+    const responseStatusChartData = useMemo(() => {
+        const pendingCount = myResponses.filter(r => r.status === 'pending' || !r.status).length;
+        const acceptedCount = myResponses.filter(r => r.status === 'accepted').length;
+        const rejectedCount = myResponses.filter(r => r.status === 'rejected').length;
 
-    const appliedSphereStats = {};
-    const appliedSalariesList = [];
-    const appliedTitlesList = [];
+        return {
+            labels: ['На рассмотрении', 'Приглашения', 'Отказы'],
+            datasets: [
+                {
+                    data: [pendingCount, acceptedCount, rejectedCount],
+                    backgroundColor: [CHART_COLORS.pending, CHART_COLORS.accepted, CHART_COLORS.rejected],
+                    borderColor: chartTheme.surface,
+                    borderWidth: 3,
+                },
+            ],
+        };
+    }, [myResponses, chartTheme]);
 
-    myResponses.forEach(r => {
-        const vac = vacancies.find(v => String(v._id) === String(r.vacancy?._id || r.vacancy));
-        if (vac) {
+    // 2 и 3. Сферы и зарплаты считаются одним проходом по откликам
+    const { sphereChartData, salaryTrendChartData } = useMemo(() => {
+        const appliedSphereStats = {};
+        const appliedSalariesList = [];
+        const appliedTitlesList = [];
+
+        myResponses.forEach(r => {
+            const vac = vacancies.find(v => String(v._id) === String(r.vacancy?._id || r.vacancy));
+            if (!vac) return;
+
             if (vac.salary) {
                 appliedSalariesList.push(Number(vac.salary));
                 appliedTitlesList.push(vac.title || 'Вакансия');
@@ -122,57 +145,41 @@ export function WorkerDashboard() {
             }
 
             appliedSphereStats[sphere] = (appliedSphereStats[sphere] || 0) + 1;
-        }
-    });
+        });
 
-    // 2. Распределение по сферам (Bar)
-    const sphereLabels = Object.keys(appliedSphereStats);
-    const sphereCounts = sphereLabels.map(s => appliedSphereStats[s]);
+        const sphereLabels = Object.keys(appliedSphereStats);
+        const sphereCounts = sphereLabels.map(s => appliedSphereStats[s]);
 
-    const sphereChartData = {
-        labels: sphereLabels.length ? sphereLabels : ['Нет данных'],
-        datasets: [
-            {
-                label: 'Количество откликов',
-                data: sphereCounts.length ? sphereCounts : [0],
-                backgroundColor: CHART_COLORS.brand,
-                borderRadius: 6,
-                maxBarThickness: 48,
+        return {
+            sphereChartData: {
+                labels: sphereLabels.length ? sphereLabels : ['Нет данных'],
+                datasets: [
+                    {
+                        label: 'Количество откликов',
+                        data: sphereCounts.length ? sphereCounts : [0],
+                        backgroundColor: CHART_COLORS.brand,
+                        borderRadius: 6,
+                        maxBarThickness: 48,
+                    },
+                ],
             },
-        ],
-    };
-
-    // 3. Зарплаты по откликам (Line)
-    const salaryTrendChartData = {
-        labels: appliedTitlesList.length ? appliedTitlesList : ['Нет данных'],
-        datasets: [
-            {
-                label: 'Зарплата в отклике (₸)',
-                data: appliedSalariesList.length ? appliedSalariesList : [0],
-                borderColor: CHART_COLORS.money,
-                backgroundColor: CHART_COLORS.moneySoft,
-                tension: 0.3,
-                fill: true,
-                pointRadius: 5,
-                pointBackgroundColor: CHART_COLORS.money,
+            salaryTrendChartData: {
+                labels: appliedTitlesList.length ? appliedTitlesList : ['Нет данных'],
+                datasets: [
+                    {
+                        label: 'Зарплата в отклике (₸)',
+                        data: appliedSalariesList.length ? appliedSalariesList : [0],
+                        borderColor: CHART_COLORS.money,
+                        backgroundColor: CHART_COLORS.moneySoft,
+                        tension: 0.3,
+                        fill: true,
+                        pointRadius: 5,
+                        pointBackgroundColor: CHART_COLORS.money,
+                    },
+                ],
             },
-        ],
-    };
-
-    // На оси зарплат нужны разделители разрядов
-    const salaryChartOptions = {
-        ...chartOptions.axis,
-        scales: {
-            ...chartOptions.axis.scales,
-            y: {
-                ...chartOptions.axis.scales.y,
-                ticks: {
-                    ...chartOptions.axis.scales.y.ticks,
-                    callback: (v) => Number(v).toLocaleString('ru-RU'),
-                },
-            },
-        },
-    };
+        };
+    }, [myResponses, vacancies]);
 
     const isLoading = [status, vacanciesStatus].some((s) => s === 'idle' || s === 'loading');
 

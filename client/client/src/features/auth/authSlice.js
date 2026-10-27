@@ -33,13 +33,10 @@ export const checkAuth = createAsyncThunk(
       return rejectWithValue(errorMessage(error, 'Неавторизован'));
     }
   },
-  {
-    condition: (_, { getState }) => getState().auth.authCheckStatus === 'idle',
-  }
 );
 
 export const logoutUser = createAsyncThunk('auth/logout', async () => {
-  await api.post('/auth/logout').catch(() => {});
+  await api.post('/auth/logout');
 });
 
 const startLoading = (state) => {

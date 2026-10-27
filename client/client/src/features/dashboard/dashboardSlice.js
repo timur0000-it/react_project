@@ -1,6 +1,11 @@
 import { createSlice, createAsyncThunk, isAnyOf } from '@reduxjs/toolkit';
 import { api, errorMessage } from '../../api/axios';
 import { logoutUser } from '../auth/authSlice';
+import {
+  createVacancy,
+  updateVacancy,
+  deleteVacancy,
+} from '../vacancies/vacanciesSlice';
 
 // Создаёт thunk: запрос плюс единый текст ошибки
 const makeThunk = (name, request, fallback) =>
@@ -12,7 +17,8 @@ const makeThunk = (name, request, fallback) =>
     }
   });
 
-// Отклики и профиль (соискателя или работодателя в зависимости от роли)
+// Отклики и профиль (соискателя или работодателя в зависимости от роли):
+// два запроса выполняются одновременно благодаря Promise.all
 export const fetchDashboardData = makeThunk(
   'fetchDashboardData',
   async (_, { getState }) => {
@@ -24,28 +30,6 @@ export const fetchDashboardData = makeThunk(
     return { responses: responses.data, profile: profile.data };
   },
   'Ошибка загрузки данных кабинета'
-);
-
-// Вакансии (работодатель). Список вакансий обновляет vacanciesSlice
-export const createVacancy = makeThunk(
-  'createVacancy',
-  async (vacancyData) => (await api.post('/vacancies', vacancyData)).data,
-  'Ошибка при создании вакансии'
-);
-
-export const updateVacancy = makeThunk(
-  'updateVacancy',
-  async ({ id, vacancyData }) => (await api.patch(`/vacancies/${id}`, vacancyData)).data,
-  'Ошибка при обновлении вакансии'
-);
-
-export const deleteVacancy = makeThunk(
-  'deleteVacancy',
-  async (id) => {
-    await api.delete(`/vacancies/${id}`);
-    return id;
-  },
-  'Ошибка при удалении вакансии'
 );
 
 // Резюме (соискатель)
@@ -64,17 +48,20 @@ export const applyToVacancy = makeThunk(
 
 export const updateResponseStatus = makeThunk(
   'updateResponseStatus',
-  async ({ responseId, status }) => (await api.patch(`/responses/${responseId}`, { status })).data,
+  async ({ responseId, status }) =>
+    (await api.patch(`/responses/${responseId}`, { status })).data,
   'Ошибка обновления статуса отклика'
 );
 
+// Все действия пользователя: их ошибки попадают в actionError
+// (вакансии живут в vacanciesSlice, но ошибку показывает дашборд)
 const actionThunks = [
-  createVacancy,
-  updateVacancy,
-  deleteVacancy,
   updateWorkerResume,
   applyToVacancy,
   updateResponseStatus,
+  createVacancy,
+  updateVacancy,
+  deleteVacancy,
 ];
 
 const initialState = {

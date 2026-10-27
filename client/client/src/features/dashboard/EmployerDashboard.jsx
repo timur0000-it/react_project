@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { Doughnut, Bar, Line } from 'react-chartjs-2';
 import {
@@ -6,12 +6,8 @@ import {
     Phone, PieChart, PlusCircle, Trash2, TrendingUp, Wallet, X
 } from 'lucide-react';
 
-import {
-    createVacancy,
-    updateVacancy,
-    deleteVacancy,
-    updateResponseStatus
-} from './dashboardSlice';
+import { updateResponseStatus } from './dashboardSlice';
+import { createVacancy, updateVacancy, deleteVacancy } from '../vacancies/vacanciesSlice';
 import { Loader } from '../../components/common/Loader';
 import { Input } from '../../components/common/Input';
 import { Select } from '../../components/common/Select';
@@ -33,7 +29,6 @@ export function EmployerDashboard() {
     const vacanciesStatus = useSelector((state) => state.vacancies.status);
     const { user } = useSelector((state) => state.auth);
     const chartTheme = useChartTheme();
-    const chartOptions = getChartOptions(chartTheme);
     const formRef = useRef(null);
 
     // Форма вакансии
@@ -58,96 +53,24 @@ export function EmployerDashboard() {
     const companyName = employer.companyName || 'Компания не указана';
     const companyPhone = employer.phone || 'Не указан';
 
-    // Мои вакансии; сервер отдаёт в откликах только отклики на них
-    const myVacancies = vacancies.filter(
-        (v) => String(v.employer?._id || v.employer) === String(user?.profileId)
-    );
+    // Сервер отдаёт в откликах только отклики на вакансии работодателя
     const myResponses = responses;
 
     // ==========================================
-    // АНАЛИТИЧЕСКИЕ РАСЧЕТЫ И ДАННЫЕ ДЛЯ CHART.JS
+    // МЕМОИЗИРОВАННЫЕ ДАННЫЕ ДЛЯ ГРАФИКОВ
+    // Пересчитываются только при смене своих зависимостей,
+    // а не при вводе текста в форму
     // ==========================================
 
-    // 1. Статусы откликов
-    const pendingCount = myResponses.filter(r => r.status === 'pending' || !r.status).length;
-    const acceptedCount = myResponses.filter(r => r.status === 'accepted').length;
-    const rejectedCount = myResponses.filter(r => r.status === 'rejected').length;
-
-    const responseStatusChartData = {
-        labels: ['На рассмотрении', 'Принято (Приглашения)', 'Отклонено'],
-        datasets: [
-            {
-                data: [pendingCount, acceptedCount, rejectedCount],
-                backgroundColor: [CHART_COLORS.pending, CHART_COLORS.accepted, CHART_COLORS.rejected],
-                borderColor: chartTheme.surface,
-                borderWidth: 3,
-            },
-        ],
-    };
-
-    // 2. Средняя зарплата по сферам
-    const sphereStats = myVacancies.reduce((acc, v) => {
-        let sphere = 'Другое';
-        const titleLower = (v.title || '').toLowerCase();
-
-        if (titleLower.includes('dev') || titleLower.includes('программист') || titleLower.includes('разработчик') || titleLower.includes('frontend') || titleLower.includes('backend') || titleLower.includes('python') || titleLower.includes('js')) {
-            sphere = 'IT & Разработка';
-        } else if (titleLower.includes('маркет') || titleLower.includes('smm') || titleLower.includes('дизайн') || titleLower.includes('seo')) {
-            sphere = 'Маркетинг & Дизайн';
-        } else if (titleLower.includes('продаж') || titleLower.includes('менеджер') || titleLower.includes('sales')) {
-            sphere = 'Продажи';
-        } else if (titleLower.includes('повар') || titleLower.includes('кухн') || titleLower.includes('официант') || titleLower.includes('ресторан')) {
-            sphere = 'Рестораны & Общепит';
-        }
-
-        if (!acc[sphere]) {
-            acc[sphere] = { count: 0, totalSalary: 0 };
-        }
-        acc[sphere].count += 1;
-        acc[sphere].totalSalary += Number(v.salary || 0);
-        return acc;
-    }, {});
-
-    const sphereLabels = Object.keys(sphereStats);
-    const sphereAvgSalaries = sphereLabels.map(s => Math.round(sphereStats[s].totalSalary / sphereStats[s].count));
-
-    const salaryChartData = {
-        labels: sphereLabels.length ? sphereLabels : ['Нет данных'],
-        datasets: [
-            {
-                label: 'Средняя зарплата (₸)',
-                data: sphereAvgSalaries.length ? sphereAvgSalaries : [0],
-                backgroundColor: CHART_COLORS.brand,
-                borderRadius: 6,
-                maxBarThickness: 48,
-            },
-        ],
-    };
-
-    // 3. Динамика откликов по вакансиям
-    const vacancyTitles = myVacancies.map(v => v.title);
-    const vacancyResponsesCounts = myVacancies.map(v =>
-        myResponses.filter(r => String(r.vacancy?._id || r.vacancy) === String(v._id)).length
+    const myVacancies = useMemo(
+        () => vacancies.filter((v) => String(v.employer?._id || v.employer) === String(user?.profileId)),
+        [vacancies, user?.profileId]
     );
 
-    const responsesPerVacancyChartData = {
-        labels: vacancyTitles.length ? vacancyTitles : ['Вакансий нет'],
-        datasets: [
-            {
-                label: 'Количество откликов',
-                data: vacancyResponsesCounts.length ? vacancyResponsesCounts : [0],
-                borderColor: CHART_COLORS.brandDark,
-                backgroundColor: CHART_COLORS.brandSoft,
-                tension: 0.3,
-                fill: true,
-                pointRadius: 5,
-                pointBackgroundColor: CHART_COLORS.brandDark,
-            },
-        ],
-    };
+    const chartOptions = useMemo(() => getChartOptions(chartTheme), [chartTheme]);
 
     // На оси зарплат нужны разделители разрядов
-    const salaryChartOptions = {
+    const salaryChartOptions = useMemo(() => ({
         ...chartOptions.axis,
         scales: {
             ...chartOptions.axis.scales,
@@ -159,7 +82,91 @@ export function EmployerDashboard() {
                 },
             },
         },
-    };
+    }), [chartOptions]);
+
+    // 1. Статусы откликов
+    const responseStatusChartData = useMemo(() => {
+        const pendingCount = myResponses.filter(r => r.status === 'pending' || !r.status).length;
+        const acceptedCount = myResponses.filter(r => r.status === 'accepted').length;
+        const rejectedCount = myResponses.filter(r => r.status === 'rejected').length;
+
+        return {
+            labels: ['На рассмотрении', 'Принято (Приглашения)', 'Отклонено'],
+            datasets: [
+                {
+                    data: [pendingCount, acceptedCount, rejectedCount],
+                    backgroundColor: [CHART_COLORS.pending, CHART_COLORS.accepted, CHART_COLORS.rejected],
+                    borderColor: chartTheme.surface,
+                    borderWidth: 3,
+                },
+            ],
+        };
+    }, [myResponses, chartTheme]);
+
+    // 2. Средняя зарплата по сферам
+    const salaryChartData = useMemo(() => {
+        const sphereStats = myVacancies.reduce((acc, v) => {
+            let sphere = 'Другое';
+            const titleLower = (v.title || '').toLowerCase();
+
+            if (titleLower.includes('dev') || titleLower.includes('программист') || titleLower.includes('разработчик') || titleLower.includes('frontend') || titleLower.includes('backend') || titleLower.includes('python') || titleLower.includes('js')) {
+                sphere = 'IT & Разработка';
+            } else if (titleLower.includes('маркет') || titleLower.includes('smm') || titleLower.includes('дизайн') || titleLower.includes('seo')) {
+                sphere = 'Маркетинг & Дизайн';
+            } else if (titleLower.includes('продаж') || titleLower.includes('менеджер') || titleLower.includes('sales')) {
+                sphere = 'Продажи';
+            } else if (titleLower.includes('повар') || titleLower.includes('кухн') || titleLower.includes('официант') || titleLower.includes('ресторан')) {
+                sphere = 'Рестораны & Общепит';
+            }
+
+            if (!acc[sphere]) {
+                acc[sphere] = { count: 0, totalSalary: 0 };
+            }
+            acc[sphere].count += 1;
+            acc[sphere].totalSalary += Number(v.salary || 0);
+            return acc;
+        }, {});
+
+        const sphereLabels = Object.keys(sphereStats);
+        const sphereAvgSalaries = sphereLabels.map(s => Math.round(sphereStats[s].totalSalary / sphereStats[s].count));
+
+        return {
+            labels: sphereLabels.length ? sphereLabels : ['Нет данных'],
+            datasets: [
+                {
+                    label: 'Средняя зарплата (₸)',
+                    data: sphereAvgSalaries.length ? sphereAvgSalaries : [0],
+                    backgroundColor: CHART_COLORS.brand,
+                    borderRadius: 6,
+                    maxBarThickness: 48,
+                },
+            ],
+        };
+    }, [myVacancies]);
+
+    // 3. Отклики по вакансиям
+    const responsesPerVacancyChartData = useMemo(() => {
+        const vacancyTitles = myVacancies.map(v => v.title);
+        const vacancyResponsesCounts = myVacancies.map(v =>
+            myResponses.filter(r => String(r.vacancy?._id || r.vacancy) === String(v._id)).length
+        );
+
+        return {
+            labels: vacancyTitles.length ? vacancyTitles : ['Вакансий нет'],
+            datasets: [
+                {
+                    label: 'Количество откликов',
+                    data: vacancyResponsesCounts.length ? vacancyResponsesCounts : [0],
+                    borderColor: CHART_COLORS.brandDark,
+                    backgroundColor: CHART_COLORS.brandSoft,
+                    tension: 0.3,
+                    fill: true,
+                    pointRadius: 5,
+                    pointBackgroundColor: CHART_COLORS.brandDark,
+                },
+            ],
+        };
+    }, [myVacancies, myResponses]);
 
     // ==========================================
     // ОБРАБОТЧИКИ
@@ -253,16 +260,7 @@ export function EmployerDashboard() {
                             Работодатель
                         </span>
                     </div>
-                    <div className="mt-1.5 flex flex-wrap gap-x-5 gap-y-1 text-sm text-[var(--muted)]">
-                        <span className="inline-flex items-center gap-1.5">
-                            <Building2 size={15} aria-hidden="true" />
-                            {companyName}
-                        </span>
-                        <span className="inline-flex items-center gap-1.5">
-                            <Phone size={15} aria-hidden="true" />
-                            {companyPhone}
-                        </span>
-                    </div>
+
                 </div>
             </section>
 
