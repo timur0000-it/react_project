@@ -1,11 +1,13 @@
-import React, { useState } from "react";
-import { useSelector } from "react-redux";
+import React, { useState, useEffect } from "react";
+import { useDispatch, useSelector } from "react-redux";
 import { Briefcase, LayoutDashboard } from "lucide-react";
 import { Header } from "../layout/Header";
 import { Button } from "../common/Button";
 import { VacancyList } from "../../features/vacancies/VacancyList";
 import { EmployerDashboard } from "../../features/dashboard/EmployerDashboard";
 import { WorkerDashboard } from "../../features/dashboard/WorkerDashboard";
+import { fetchVacancies } from "../../features/vacancies/vacanciesSlice";
+import { fetchDashboardData } from "../../features/dashboard/dashboardSlice";
 
 const TABS = [
   { id: "vacancies", label: "Все вакансии", icon: Briefcase },
@@ -13,8 +15,15 @@ const TABS = [
 ];
 
 export function JobsPage() {
+  const dispatch = useDispatch();
   const { user } = useSelector((state) => state.auth);
   const [activeTab, setActiveTab] = useState("vacancies"); // 'vacancies' | 'dashboard'
+
+  // Данные загружаются один раз; дальше их обновляют сами слайсы
+  useEffect(() => {
+    dispatch(fetchVacancies());
+    dispatch(fetchDashboardData());
+  }, [dispatch]);
 
   return (
     <div className="min-h-screen">

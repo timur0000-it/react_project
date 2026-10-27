@@ -1,15 +1,12 @@
-import { useEffect } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { SearchX, X } from "lucide-react";
-import { fetchVacancies, setSearchQuery, setMinSalary, setExperienceFilter, resetFilters } from "./vacanciesSlice";
-import { fetchDashboardData, applyToVacancy } from "../dashboard/dashboardSlice";
+import { setSearchQuery, setMinSalary, setExperienceFilter, resetFilters } from "./vacanciesSlice";
+import { applyToVacancy } from "../dashboard/dashboardSlice";
 import { Loader } from "../../components/common/Loader";
 import { Input } from "../../components/common/Input";
 import { Select } from "../../components/common/Select";
 import { Button } from "../../components/common/Button";
 import { VacancyCard } from "./VacancyCard";
-import { toast } from "sonner";
-import { getRequestError } from "../../lib/getRequestError";
 
 export function VacancyList() {
     const dispatch = useDispatch();
@@ -17,62 +14,23 @@ export function VacancyList() {
     const { responses } = useSelector((state) => state.dashboard);
     const { user } = useSelector((state) => state.auth);
 
-    // Загрузка списка вакансий
-    useEffect(() => {
-        if (status === "idle") {
-            dispatch(fetchVacancies());
-        }
-    }, [status, dispatch]);
-
-    // Загрузка откликов соискателя
-    useEffect(() => {
-        dispatch(fetchDashboardData())
-            .unwrap()
-            .catch((error) => {
-                toast.error(
-                    getRequestError(
-                        error,
-                        "Не удалось загрузить ваши отклики"
-                    )
-                );
-            });
-    }, [dispatch]);
-const handleApply = async (vacancyId) => {
-    try {
-        await dispatch(applyToVacancy(vacancyId)).unwrap();
-
-        toast.success("Вы успешно откликнулись на вакансию");
-    } catch (error) {
-        toast.error(
-            getRequestError(
-                error,
-                "Не удалось откликнуться на вакансию"
-            )
-        );
-    }
-};
-
-    // Множество ID вакансий, на которые соискатель уже откликнулся
-    const myAppliedVacancyIds = new Set(
-        responses
-            .filter(r => {
-                const workerId = typeof r.worker === 'object' ? r.worker?._id : r.worker;
-                return String(workerId) === String(user?.profileId);
-            })
-            .map(r => String(typeof r.vacancy === 'object' ? r.vacancy?._id : r.vacancy))
+    // Сервер отдаёт соискателю только его отклики, поэтому достаточно собрать ID вакансий
+    const appliedVacancyIds = new Set(
+        responses.map((r) => String(r.vacancy?._id || r.vacancy))
     );
 
     // Фильтрация вакансий по названию/городу, зарплате и опыту
+    const query = searchQuery.toLowerCase();
     const filteredVacancies = items.filter((vacancy) => {
         const matchesQuery =
-            vacancy.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            vacancy.city.toLowerCase().includes(searchQuery.toLowerCase());
+            vacancy.title.toLowerCase().includes(query) ||
+            vacancy.city.toLowerCase().includes(query);
         const matchesSalary = minSalary === '' || Number(vacancy.salary) >= Number(minSalary);
         const matchesExperience = experienceFilter === 'Все' || vacancy.experience === experienceFilter;
         return matchesQuery && matchesSalary && matchesExperience;
     });
 
-    if (status === 'loading') return <Loader />;
+    if (status === 'idle' || status === 'loading') return <Loader />;
     if (status === 'failed') {
         return (
             <div
@@ -159,8 +117,8 @@ const handleApply = async (vacancyId) => {
                             key={vacancy._id}
                             vacancy={vacancy}
                             userRole={user?.role}
-                            hasApplied={myAppliedVacancyIds.has(String(vacancy._id))}
-                            onApply={() => handleApply(vacancy._id)}
+                            hasApplied={appliedVacancyIds.has(String(vacancy._id))}
+                            onApply={() => dispatch(applyToVacancy(vacancy._id))}
                         />
                     ))}
                 </div>

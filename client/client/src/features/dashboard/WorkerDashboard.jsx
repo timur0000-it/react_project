@@ -1,11 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { Doughnut, Bar, Line } from 'react-chartjs-2';
 import {
-    Briefcase, FileText, Inbox, PieChart, TrendingUp, UserPen
+    Briefcase, FileText, Inbox, Pencil, PieChart, TrendingUp, UserPen
 } from 'lucide-react';
 
-import { fetchDashboardData, updateWorkerResume } from './dashboardSlice';
+import { updateWorkerResume } from './dashboardSlice';
 import { CHART_COLORS, useChartTheme, getChartOptions } from '../../lib/chart';
 import { workerResumeSchema } from '../../lib/schemas';
 import { validate } from '../../lib/validate';
@@ -15,90 +15,66 @@ import { Button } from '../../components/common/Button';
 import { Field } from '../../components/common/Field';
 import { Panel } from '../../components/common/Panel';
 import { StatusBadge } from '../../components/common/StatusBadge';
-import { toast } from 'sonner';
-import { getRequestError } from '../../lib/getRequestError';
 
 const WORKER_STATUS_LABELS = { accepted: 'Приглашение', rejected: 'Отказ' };
 
 export function WorkerDashboard() {
     const dispatch = useDispatch();
-    const { responses, vacancies, workerProfile, status, } = useSelector((state) => state.dashboard);
+    const { responses, profile, status, error, actionError } = useSelector((state) => state.dashboard);
+    const vacancies = useSelector((state) => state.vacancies.items);
+    const vacanciesStatus = useSelector((state) => state.vacancies.status);
     const { user } = useSelector((state) => state.auth);
     const chartTheme = useChartTheme();
     const chartOptions = getChartOptions(chartTheme);
+    const formRef = useRef(null);
 
+    const [isEditing, setIsEditing] = useState(false);
     const [resume, setResume] = useState('');
     const [fieldErrors, setFieldErrors] = useState({});
-    const [isResumeFormOpen, setIsResumeFormOpen] = useState(false);
-    useEffect(() => {
-        dispatch(fetchDashboardData())
-            .unwrap()
-            .catch((error) => {
-                toast.error(
-                    getRequestError(
-                        error,
-                        'Не удалось загрузить кабинет соискателя'
-                    )
-                );
-            });
-    }, [dispatch]);
 
-    const actualWorker = workerProfile?.worker || workerProfile || {};
-
-    const displayName =
-        actualWorker?.user?.name ||
-        actualWorker?.name ||
-        user?.name ||
-        user?.user?.name ||
-        'Соискатель';
+    const displayName = user?.name || 'Соискатель';
 
     // В блоке «текущее резюме» показываем только сохранённый текст, а не то, что набрано в форме
-    const savedResume = actualWorker?.resume || '';
+    const savedResume = profile?.resume || '';
 
-    // Предзаполнение формы данными из профиля при загрузке
+    // Когда форма открывается, прокручиваем к ней
     useEffect(() => {
-        if (actualWorker?.resume) setResume(actualWorker.resume);
-    }, [workerProfile]);
+        if (isEditing) {
+            formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+    }, [isEditing]);
+
+    const openForm = () => {
+        setResume(savedResume);
+        setFieldErrors({});
+        setIsEditing(true);
+    };
+
+    const closeForm = () => {
+        setFieldErrors({});
+        setIsEditing(false);
+    };
 
     const handleChange = (e) => {
         setResume(e.target.value);
         if (fieldErrors.resume) setFieldErrors((prev) => ({ ...prev, resume: undefined }));
     };
 
-const handleSubmit = async (e) => {
-    e.preventDefault();
+    const handleSubmit = async (e) => {
+        e.preventDefault();
 
-    const { data, errors } = validate(
-        workerResumeSchema,
-        { resume }
-    );
+        const { data, errors } = validate(workerResumeSchema, { resume });
+        setFieldErrors(errors);
+        if (!data) return;
 
-    setFieldErrors(errors);
+        const result = await dispatch(updateWorkerResume({ resume: data.resume }));
 
-    // Ошибки валидации уже отображаются у полей
-    if (!data) return;
+        // При ошибке сервера оставляем форму открытой, чтобы не потерять введённый текст
+        if (result.meta.requestStatus === 'fulfilled') closeForm();
+    };
 
-    try {
-        await dispatch(
-            updateWorkerResume({ resume: data.resume })
-        ).unwrap();
-
-        toast.success('Резюме успешно обновлено');
-        setIsResumeFormOpen(false);
-    } catch (error) {
-        toast.error(
-            getRequestError(
-                error,
-                'Не удалось обновить резюме'
-            )
-        );
-    }
-};
-    // Отклики текущего соискателя
-    const myResponses = responses.filter(r => {
-        const workerId = typeof r.worker === 'object' ? r.worker?._id : r.worker;
-        return String(workerId) === String(user?.profileId);
-    });
+    // Сервер отдаёт соискателю только его собственные отклики
+    const myResponses = responses;
 
     // ==========================================
     // АНАЛИТИКА И ДАННЫЕ ДЛЯ ГРАФИКОВ
@@ -198,13 +174,22 @@ const handleSubmit = async (e) => {
         },
     };
 
-    if (status === 'loading' && !workerProfile) {
+    const isLoading = [status, vacanciesStatus].some((s) => s === 'idle' || s === 'loading');
+
+    if (isLoading) {
         return <Loader label="Загрузка кабинета соискателя..." />;
     }
 
     return (
         <div className="mx-auto w-full max-w-6xl space-y-6 px-4 py-8 sm:px-6">
-
+            {(error || actionError) && (
+                <div
+                    role="alert"
+                    className="rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-600 dark:text-red-400"
+                >
+                    Ошибка: {error || actionError}
+                </div>
+            )}
 
             {/* ПРОФИЛЬ И ТЕКУЩЕЕ РЕЗЮМЕ */}
             <section className="rounded-card border border-[var(--border)] bg-[var(--surface)] p-6 shadow-card">
@@ -226,10 +211,18 @@ const handleSubmit = async (e) => {
                 </div>
 
                 <div className="mt-5 border-t border-[var(--border)] pt-5">
-                    <h4 className="mb-2 flex items-center gap-2 text-sm font-semibold">
-                        <FileText size={16} className="text-brand-600" aria-hidden="true" />
-                        Ваше текущее резюме
-                    </h4>
+                    <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                        <h4 className="flex items-center gap-2 text-sm font-semibold">
+                            <FileText size={16} className="text-brand-600" aria-hidden="true" />
+                            Ваше текущее резюме
+                        </h4>
+                        {!isEditing && (
+                            <Button size="sm" variant="secondary" onClick={openForm}>
+                                <Pencil size={14} aria-hidden="true" />
+                                {savedResume ? 'Редактировать' : 'Добавить резюме'}
+                            </Button>
+                        )}
+                    </div>
                     <p
                         className={`whitespace-pre-line rounded-lg border border-[var(--border)] bg-[var(--bg)] p-4 text-sm leading-relaxed ${
                             savedResume ? '' : 'text-[var(--muted)]'
@@ -238,21 +231,36 @@ const handleSubmit = async (e) => {
                         {savedResume || 'Резюме пока не заполнено.'}
                     </p>
                 </div>
-                <div className="mt-4 flex justify-end">
-                    <Button
-                        type="button"
-                        variant="secondary"
-                        onClick={() => {
-                            setResume(savedResume);
-                            setFieldErrors({});
-                            setIsResumeFormOpen(true);
-                        }}
-                    >
-                        <UserPen size={16} aria-hidden="true" />
-                        Редактировать резюме
-                    </Button>
-                </div>
             </section>
+
+            {/* РЕДАКТИРОВАНИЕ РЕЗЮМЕ (показывается только после нажатия кнопки) */}
+            {isEditing && (
+                <div ref={formRef} className="scroll-mt-24">
+                    <Panel icon={UserPen} title="Редактировать резюме">
+                        {/* noValidate отключает всплывающие подсказки браузера, чтобы показывались сообщения Zod */}
+                        <form onSubmit={handleSubmit} noValidate className="space-y-4">
+                            <Field id="worker-resume" label="О себе / Опыт работы" error={fieldErrors.resume}>
+                                <Textarea
+                                    id="worker-resume"
+                                    rows={6}
+                                    placeholder="Расскажите о своем опыте..."
+                                    error={!!fieldErrors.resume}
+                                    aria-describedby={fieldErrors.resume ? 'worker-resume-error' : undefined}
+                                    value={resume}
+                                    onChange={handleChange}
+                                />
+                            </Field>
+
+                            <div className="flex flex-wrap gap-3">
+                                <Button type="submit">Сохранить резюме</Button>
+                                <Button type="button" variant="secondary" onClick={closeForm}>
+                                    Отмена
+                                </Button>
+                            </div>
+                        </form>
+                    </Panel>
+                </div>
+            )}
 
             {/* АНАЛИТИКА (3 ГРАФИКА) */}
             <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
@@ -274,55 +282,6 @@ const handleSubmit = async (e) => {
                     </div>
                 </Panel>
             </div>
-
-                        {/* РЕДАКТИРОВАНИЕ РЕЗЮМЕ */}
-            {isResumeFormOpen && (
-                <Panel icon={UserPen} title="Редактировать резюме">
-                    <form
-                        onSubmit={handleSubmit}
-                        noValidate
-                        className="space-y-4"
-                    >
-                        <Field
-                            id="worker-resume"
-                            label="О себе / Опыт работы"
-                            error={fieldErrors.resume}
-                        >
-                            <Textarea
-                                id="worker-resume"
-                                rows={6}
-                                placeholder="Расскажите о своем опыте..."
-                                error={!!fieldErrors.resume}
-                                aria-describedby={
-                                    fieldErrors.resume
-                                        ? 'worker-resume-error'
-                                        : undefined
-                                }
-                                value={resume}
-                                onChange={handleChange}
-                            />
-                        </Field>
-
-                        <div className="flex flex-wrap gap-3">
-                            <Button type="submit">
-                                Сохранить резюме
-                            </Button>
-
-                            <Button
-                                type="button"
-                                variant="secondary"
-                                onClick={() => {
-                                    setResume(savedResume);
-                                    setFieldErrors({});
-                                    setIsResumeFormOpen(false);
-                                }}
-                            >
-                                Отмена
-                            </Button>
-                        </div>
-                    </form>
-                </Panel>
-            )}
 
             {/* СПИСОК ОТКЛИКОВ */}
             <Panel icon={Inbox} title={`Мои отклики (${myResponses.length})`}>

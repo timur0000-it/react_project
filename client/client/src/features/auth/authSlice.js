@@ -1,69 +1,71 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
-import { api } from '../../api/axios';
+import { api, errorMessage } from '../../api/axios';
 
-// 1. ASYNC THUNK: РЕГИСТРАЦИЯ
 export const registerUser = createAsyncThunk(
   'auth/register',
-  async (credentials, { rejectWithValue }) => {
+  async (data, { rejectWithValue }) => {
     try {
-      const response = await api.post('/auth/register', credentials);
-      return response.data; // Возвращает { accessToken, user }
+      return (await api.post('/auth/register', data)).data; // { accessToken, user }
     } catch (error) {
-      return rejectWithValue(error.response?.data?.message || 'Ошибка регистрации');
+      return rejectWithValue(errorMessage(error, 'Ошибка регистрации'));
     }
   }
 );
 
-// 2. ASYNC THUNK: ВХОД
 export const loginUser = createAsyncThunk(
   'auth/login',
-  async (credentials, { rejectWithValue }) => {
+  async (data, { rejectWithValue }) => {
     try {
-      const response = await api.post('/auth/login', credentials);
-      return response.data; // Возвращает { accessToken, user }
+      return (await api.post('/auth/login', data)).data; // { accessToken, user }
     } catch (error) {
-      return rejectWithValue(error.response?.data?.message || 'Ошибка входа');
+      return rejectWithValue(errorMessage(error, 'Ошибка входа'));
     }
   }
 );
 
-// 3. ASYNC THUNK: ТИХОЕ ОБНОВЛЕНИЕ СЕССИИ ПРИ ПЕРЕЗАГРУЗКЕ СТРАНИЦЫ
+// Тихое восстановление сессии при загрузке страницы
 export const checkAuth = createAsyncThunk(
-    'auth/check',
-    async (_, { rejectWithValue }) => {
-        try {
-            const response = await api.get('/auth/refresh');
-            return response.data;
-        } catch (error) {
-            return rejectWithValue(
-                error.response?.data?.message || 'Неавторизован'
-            );
-        }
-    },
-    {
-        // Не запускаем повторную проверку, пока первая не завершилась
-        condition: (_, { getState }) => {
-            return getState().auth.authCheckStatus === 'idle';
-        },
-    }
-);
-// 4. ASYNC THUNK: ВЫХОД
-export const logoutUser = createAsyncThunk(
-  'auth/logout',
-  async () => {
+  'auth/check',
+  async (_, { rejectWithValue }) => {
     try {
-      await api.post('/auth/logout');
+      return (await api.get('/auth/refresh')).data;
     } catch (error) {
-      console.error('Ошибка выхода:', error);
+      return rejectWithValue(errorMessage(error, 'Неавторизован'));
     }
+  },
+  {
+    condition: (_, { getState }) => getState().auth.authCheckStatus === 'idle',
   }
 );
+
+export const logoutUser = createAsyncThunk('auth/logout', async () => {
+  await api.post('/auth/logout').catch(() => {});
+});
+
+const startLoading = (state) => {
+  state.isLoading = true;
+  state.error = null;
+};
+
+const setSession = (state, action) => {
+  state.user = action.payload.user;
+  state.accessToken = action.payload.accessToken;
+  state.isLoading = false;
+  state.error = null;
+};
+
+const clearSession = (state) => {
+  state.user = null;
+  state.accessToken = null;
+  state.isLoading = false;
+};
+
 const authSlice = createSlice({
   name: 'auth',
   initialState: {
-    user: null,         //  userId, email 
-    accessToken: null, 
-    isLoading: true,    // Идет ли первичная проверка сессии
+    user: null, // { userId, name, email, role, profileId }
+    accessToken: null,
+    isLoading: true, // true, пока идёт первичная проверка сессии
     error: null,
     authCheckStatus: 'idle',
   },
@@ -71,140 +73,48 @@ const authSlice = createSlice({
     clearError: (state) => {
       state.error = null;
     },
+    // Их вызывает axios.js при автоматическом обновлении токена
+    sessionRefreshed: (state, action) => {
+      state.user = action.payload.user;
+      state.accessToken = action.payload.accessToken;
+    },
+    sessionExpired: clearSession,
   },
- extraReducers: (builder) => {
-  builder
-    // Регистрация
-    .addCase(registerUser.pending, (state) => {
-      state.isLoading = true;
-      state.error = null;
-    })
-    .addCase(registerUser.fulfilled, (state, action) => {
-      state.user = action.payload.user;
-      state.accessToken = action.payload.accessToken;
-      state.isLoading = false;
-      state.error = null;
-    })
-    .addCase(registerUser.rejected, (state, action) => {
-      state.isLoading = false;
-      state.error = action.payload || 'Ошибка регистрации';
-    })
+  extraReducers: (builder) => {
+    builder
+      .addCase(registerUser.pending, startLoading)
+      .addCase(registerUser.fulfilled, setSession)
+      .addCase(registerUser.rejected, (state, action) => {
+        state.isLoading = false;
+        state.error = action.payload || 'Ошибка регистрации';
+      })
 
-    // Вход
-    .addCase(loginUser.pending, (state) => {
-      state.isLoading = true;
-      state.error = null;
-    })
-    .addCase(loginUser.fulfilled, (state, action) => {
-      state.user = action.payload.user;
-      state.accessToken = action.payload.accessToken;
-      state.isLoading = false;
-      state.error = null;
-    })
-    .addCase(loginUser.rejected, (state, action) => {
-      state.isLoading = false;
-      state.error = action.payload || 'Ошибка входа';
-    })
+      .addCase(loginUser.pending, startLoading)
+      .addCase(loginUser.fulfilled, setSession)
+      .addCase(loginUser.rejected, (state, action) => {
+        state.isLoading = false;
+        state.error = action.payload || 'Ошибка входа';
+      })
 
-    .addCase(checkAuth.pending, (state) => {
+      .addCase(checkAuth.pending, (state) => {
         state.authCheckStatus = 'loading';
         state.isLoading = true;
-    })
-    .addCase(checkAuth.fulfilled, (state, action) => {
+      })
+      .addCase(checkAuth.fulfilled, (state, action) => {
         state.authCheckStatus = 'succeeded';
-        state.user = action.payload.user;
-        state.accessToken = action.payload.accessToken;
-        state.isLoading = false;
-        state.error = null;
-    })
-    .addCase(checkAuth.rejected, (state) => {
+        setSession(state, action);
+      })
+      .addCase(checkAuth.rejected, (state) => {
         state.authCheckStatus = 'failed';
-        state.user = null;
-        state.accessToken = null;
-        state.isLoading = false;
-    })
+        clearSession(state);
+      })
 
-    // Выход
-    .addCase(logoutUser.fulfilled, (state) => {
-      state.user = null;
-      state.accessToken = null;
-      state.isLoading = false;
-      state.error = null;
-    });
-},
+      .addCase(logoutUser.fulfilled, (state) => {
+        clearSession(state);
+        state.error = null;
+      });
+  },
 });
 
 export const { clearError } = authSlice.actions;
 export default authSlice.reducer;
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-// import { createSlice } from "@reduxjs/toolkit"
-
-// let savedUser = JSON.parse(localStorage.getItem('currentUser')) || null
-// let savedUsersList = JSON.parse(localStorage.getItem('users')) || []
-
-// const initialState = {
-//     user: savedUser,
-//     users: savedUsersList,
-//     error: null
-// }
-
-// const authSlice = createSlice({
-//     name: 'auth',
-//     initialState,
-//     reducers: {
-//         register: (state, action) => {
-//             const {email, password, name} = action.payload
-//             let existing = state.users.find((u) => u.email === email)
-//             if(existing) {
-//                 state.error = "Пользователь с такой почтой уже существует"
-//             }
-
-//             const newUser = {email, password, name}
-//             console.log(newUser);
-            
-//             state.users.push(newUser)
-//             state.user = {email, name}
-//             state.error = null
-
-//             localStorage.setItem('currentUser', JSON.stringify(state.user))
-//             localStorage.setItem('users', JSON.stringify(state.users))
-//         },
-//         login: (state, action) => {
-//             const {email, password} = action.payload
-
-//             const user = state.users.find((u) => u.email === email && u.password === password)
-
-//             if(!user) {
-//                 state.error = 'Неверный email или пароль'
-//                 return
-//             }
-
-//             state.user = {email: user.email, name: user.name}
-//             localStorage.setItem('currentUser', JSON.stringify(state.user))
-//         },
-//         logout: (state, action) => {
-//             state.user = null
-//             localStorage.removeItem('currentUser')
-//         }
-//     }
-// })
-
-// export const {register, login, logout} = authSlice.actions
-
-// export const selectCurrentUser = (state) => state.auth.user
-// export const selectAuthError = (state) => state.auth.error
-
-// export default authSlice.reducer

@@ -23,7 +23,7 @@ export const vacancySchema = z.object({
   // z.coerce превращает строку из input в число
   salary: z.coerce.number({ error: 'Введите число' }).positive('Зарплата должна быть больше 0'),
   experience: z.enum(EXPERIENCE_OPTIONS, { error: 'Выберите опыт' }),
-  description: z.string().trim().max(2000, 'Не более 2000 символов'),
+  description: z.string().trim().min(1, 'Добавьте описание').max(2000, 'Не более 2000 символов'),
 });
 export const workerResumeSchema = z.object({
   resume: z

@@ -2,18 +2,16 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { Doughnut, Bar, Line } from 'react-chartjs-2';
 import {
-    Briefcase, Building2, Check, FileText, Inbox, Pencil,
+    Briefcase, Building2, Check, FileText, Inbox, Mail, Pencil,
     Phone, PieChart, PlusCircle, Trash2, TrendingUp, Wallet, X
 } from 'lucide-react';
 
 import {
-    fetchDashboardData,
     createVacancy,
     updateVacancy,
     deleteVacancy,
     updateResponseStatus
 } from './dashboardSlice';
-import { fetchVacancies } from '../vacancies/vacanciesSlice';
 import { Loader } from '../../components/common/Loader';
 import { Input } from '../../components/common/Input';
 import { Select } from '../../components/common/Select';
@@ -25,19 +23,21 @@ import { StatusBadge } from '../../components/common/StatusBadge';
 import { CHART_COLORS, useChartTheme, getChartOptions } from '../../lib/chart';
 import { vacancySchema, EXPERIENCE_OPTIONS } from '../../lib/schemas';
 import { validate } from '../../lib/validate';
-import { toast } from 'sonner';
-import { getRequestError } from '../../lib/getRequestError';
+
 const EMPLOYER_STATUS_LABELS = { accepted: 'Принято (Приглашение)' };
 
 export function EmployerDashboard() {
     const dispatch = useDispatch();
-    const { vacancies, responses, employerProfile, status, error, actionError } = useSelector((state) => state.dashboard);
+    const { responses, profile, status, error, actionError } = useSelector((state) => state.dashboard);
+    const vacancies = useSelector((state) => state.vacancies.items);
+    const vacanciesStatus = useSelector((state) => state.vacancies.status);
     const { user } = useSelector((state) => state.auth);
     const chartTheme = useChartTheme();
     const chartOptions = getChartOptions(chartTheme);
     const formRef = useRef(null);
 
     // Форма вакансии
+    const [isFormOpen, setIsFormOpen] = useState(false);
     const [title, setTitle] = useState('');
     const [description, setDescription] = useState('');
     const [city, setCity] = useState('');
@@ -45,65 +45,24 @@ export function EmployerDashboard() {
     const [experience, setExperience] = useState('Без опыта');
     const [editingId, setEditingId] = useState(null);
     const [fieldErrors, setFieldErrors] = useState({});
-    const [isFormOpen, setIsFormOpen] = useState(false);
-    useEffect(() => {
-        dispatch(fetchDashboardData())
-            .unwrap()
-            .catch((error) => {
-                toast.error(
-                    getRequestError(
-                        error,
-                        'Не удалось загрузить панель работодателя'
-                    )
-                );
-            });
-    }, [dispatch]);
+
+    // Когда форма открывается (или переключается на другую вакансию), прокручиваем к ней
     useEffect(() => {
         if (isFormOpen) {
-            formRef.current?.scrollIntoView({
-                behavior: 'smooth',
-                block: 'start',
-            });
+            formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
         }
     }, [isFormOpen, editingId]);
-    // Извлекаем профиль работодателя с учетом вложенностей
-    const actualEmployer = employerProfile?.employer || employerProfile || {};
 
-    const displayName =
-        actualEmployer?.user?.name ||
-        actualEmployer?.companyName ||
-        user?.name ||
-        user?.user?.name ||
-        user?.email ||
-        'Работодатель';
+    const employer = profile || {};
+    const displayName = user?.name || employer.companyName || 'Работодатель';
+    const companyName = employer.companyName || 'Компания не указана';
+    const companyPhone = employer.phone || 'Не указан';
 
-    const companyName =
-        actualEmployer?.companyName ||
-        actualEmployer?.company ||
-        'Компания не указана';
-
-    const companyPhone =
-        actualEmployer?.phone ||
-        'Не указан';
-
-    // Фильтрация вакансий текущего работодателя
-    const myVacancies = vacancies.filter(v => {
-        if (!v.employer) return false;
-        const vacancyEmployerId = typeof v.employer === 'object' ? (v.employer._id || v.employer.id) : v.employer;
-        const vacancyUserRef = typeof v.employer === 'object' && v.employer.user ? (typeof v.employer.user === 'object' ? v.employer.user._id : v.employer.user) : null;
-        return (
-            String(vacancyEmployerId) === String(user?.profileId) ||
-            String(vacancyEmployerId) === String(user?.userId) ||
-            (vacancyUserRef && String(vacancyUserRef) === String(user?.userId))
-        );
-    });
-
-    // Отклики на мои вакансии
-    const myVacancyIds = new Set(myVacancies.map(v => String(v._id)));
-    const myResponses = responses.filter(r => {
-        const vacId = typeof r.vacancy === 'object' ? r.vacancy?._id : r.vacancy;
-        return myVacancyIds.has(String(vacId));
-    });
+    // Мои вакансии; сервер отдаёт в откликах только отклики на них
+    const myVacancies = vacancies.filter(
+        (v) => String(v.employer?._id || v.employer) === String(user?.profileId)
+    );
+    const myResponses = responses;
 
     // ==========================================
     // АНАЛИТИЧЕСКИЕ РАСЧЕТЫ И ДАННЫЕ ДЛЯ CHART.JS
@@ -220,110 +179,51 @@ export function EmployerDashboard() {
         setSalary('');
         setExperience('Без опыта');
         setFieldErrors({});
+    };
+
+    const openCreateForm = () => {
+        resetForm();
+        setIsFormOpen(true);
+    };
+
+    const closeForm = () => {
+        resetForm();
         setIsFormOpen(false);
     };
 
-const handleSubmit = async (e) => {
-    e.preventDefault();
-
-    const { data: vacancyData, errors } = validate(
-        vacancySchema,
-        { title, city, salary, experience, description }
-    );
-
-    setFieldErrors(errors);
-
-    if (!vacancyData) return;
-
-    const isEditing = Boolean(editingId);
-
-    try {
-        if (isEditing) {
-            await dispatch(
-                updateVacancy({
-                    id: editingId,
-                    vacancyData,
-                })
-            ).unwrap();
-
-            toast.success('Вакансия успешно обновлена');
-        } else {
-            await dispatch(
-                createVacancy(vacancyData)
-            ).unwrap();
-
-            toast.success('Вакансия успешно опубликована');
-        }
-
-        // Обновляем данные после успешной операции
-        dispatch(fetchDashboardData());
-        dispatch(fetchVacancies());
-
-        resetForm();
-    } catch (error) {
-        toast.error(
-            getRequestError(
-                error,
-                isEditing
-                    ? 'Не удалось обновить вакансию'
-                    : 'Не удалось создать вакансию'
-            )
-        );
-    }
-    };
-        const handleCreate = () => {
-        setEditingId(null);
-        setTitle('');
-        setDescription('');
-        setCity('');
-        setSalary('');
-        setExperience('Без опыта');
+    const handleEdit = (vacancy) => {
+        setEditingId(vacancy._id);
+        setTitle(vacancy.title);
+        setDescription(vacancy.description || '');
+        setCity(vacancy.city);
+        setSalary(vacancy.salary);
+        setExperience(vacancy.experience);
         setFieldErrors({});
         setIsFormOpen(true);
     };
-        const handleEdit = (vacancy) => {
-            setEditingId(vacancy._id);
-            setTitle(vacancy.title);
-            setDescription(vacancy.description || '');
-            setCity(vacancy.city);
-            setSalary(vacancy.salary);
-            setExperience(vacancy.experience);
-            setFieldErrors({});
-            setIsFormOpen(true);
-        };
-    const handleDelete = async (id) => {
-        try {
-            await dispatch(deleteVacancy(id)).unwrap();
 
-            toast.success('Вакансия успешно удалена');
+    const handleSubmit = async (e) => {
+        e.preventDefault();
 
-            dispatch(fetchDashboardData());
-            dispatch(fetchVacancies());
-        } catch (error) {
-            toast.error(
-                getRequestError(error, 'Не удалось удалить вакансию')
-            );
-        }
+        const { data: vacancyData, errors } = validate(vacancySchema, {
+            title, city, salary, experience, description,
+        });
+        setFieldErrors(errors);
+        if (!vacancyData) return;
+
+        const result = await dispatch(
+            editingId
+                ? updateVacancy({ id: editingId, vacancyData })
+                : createVacancy(vacancyData)
+        );
+
+        // При ошибке сервера оставляем форму открытой, чтобы не потерять введённые данные
+        if (result.meta.requestStatus === 'fulfilled') closeForm();
     };
-    const handleResponseStatus = async (responseId, status) => {
-    try {
-        await dispatch(
-            updateResponseStatus({ responseId, status })
-        ).unwrap();
 
-        toast.success(
-            status === 'accepted'
-                ? 'Отклик принят'
-                : 'Отклик отклонён'
-        );
-    } catch (error) {
-        toast.error(
-            getRequestError(error, 'Не удалось изменить статус отклика')
-        );
-    }
-};
+    const isLoading = [status, vacanciesStatus].some((s) => s === 'idle' || s === 'loading');
 
-    if (status === 'loading' && vacancies.length === 0) {
+    if (isLoading) {
         return <Loader label="Загрузка панели аналитики..." />;
     }
 
@@ -365,19 +265,21 @@ const handleSubmit = async (e) => {
                     </div>
                 </div>
             </section>
-                    {!isFormOpen && (
-            <div className="flex justify-end">
-                <Button type="button" onClick={handleCreate}>
-                    <PlusCircle size={16} aria-hidden="true" />
-                    Создать вакансию
-                </Button>
-            </div>
-        )}
+
             {/* СПИСОК МОИХ ВАКАНСИЙ */}
             <Panel icon={Briefcase} title={`Мои вакансии (${myVacancies.length})`}>
+                {!isFormOpen && (
+                    <div className="mb-4">
+                        <Button onClick={openCreateForm}>
+                            <PlusCircle size={16} aria-hidden="true" />
+                            Создать вакансию
+                        </Button>
+                    </div>
+                )}
+
                 {myVacancies.length === 0 ? (
                     <p className="text-sm text-[var(--muted)]">
-                        У вас пока нет вакансий. Создайте первую в форме ниже.
+                        У вас пока нет вакансий. Нажмите «Создать вакансию», чтобы добавить первую.
                     </p>
                 ) : (
                     <ul className="space-y-3">
@@ -408,7 +310,7 @@ const handleSubmit = async (e) => {
                                         <Pencil size={14} aria-hidden="true" />
                                         Редактировать
                                     </Button>
-                                    <Button size="sm" variant="danger-soft" onClick={() => handleDelete(vacancy._id)}>
+                                    <Button size="sm" variant="danger-soft" onClick={() => dispatch(deleteVacancy(vacancy._id))}>
                                         <Trash2 size={14} aria-hidden="true" />
                                         Удалить
                                     </Button>
@@ -418,6 +320,91 @@ const handleSubmit = async (e) => {
                     </ul>
                 )}
             </Panel>
+
+            {/* ФОРМА ВАКАНСИИ (показывается только после нажатия «Создать» или «Редактировать») */}
+            {isFormOpen && (
+                <div ref={formRef} className="scroll-mt-24">
+                    <Panel
+                        icon={editingId ? Pencil : PlusCircle}
+                        title={editingId ? 'Редактировать вакансию' : 'Создать новую вакансию'}
+                    >
+                        {/* noValidate отключает всплывающие подсказки браузера, чтобы показывались сообщения Zod */}
+                        <form onSubmit={handleSubmit} noValidate className="grid gap-4 sm:grid-cols-2">
+                            <Field id="vacancy-title" label="Название должности" error={fieldErrors.title}>
+                                <Input
+                                    id="vacancy-title"
+                                    placeholder="Например, Frontend-разработчик"
+                                    error={!!fieldErrors.title}
+                                    aria-describedby={fieldErrors.title ? 'vacancy-title-error' : undefined}
+                                    value={title}
+                                    onChange={bind('title', setTitle)}
+                                />
+                            </Field>
+
+                            <Field id="vacancy-city" label="Город" error={fieldErrors.city}>
+                                <Input
+                                    id="vacancy-city"
+                                    placeholder="Караганда"
+                                    error={!!fieldErrors.city}
+                                    aria-describedby={fieldErrors.city ? 'vacancy-city-error' : undefined}
+                                    value={city}
+                                    onChange={bind('city', setCity)}
+                                />
+                            </Field>
+
+                            <Field id="vacancy-salary" label="Зарплата (₸)" error={fieldErrors.salary}>
+                                <Input
+                                    id="vacancy-salary"
+                                    type="number"
+                                    min="0"
+                                    inputMode="numeric"
+                                    placeholder="300000"
+                                    error={!!fieldErrors.salary}
+                                    aria-describedby={fieldErrors.salary ? 'vacancy-salary-error' : undefined}
+                                    value={salary}
+                                    onChange={bind('salary', setSalary)}
+                                />
+                            </Field>
+
+                            <Field id="vacancy-experience" label="Опыт работы" error={fieldErrors.experience}>
+                                <Select
+                                    id="vacancy-experience"
+                                    error={!!fieldErrors.experience}
+                                    value={experience}
+                                    onChange={bind('experience', setExperience)}
+                                >
+                                    {EXPERIENCE_OPTIONS.map((opt) => (
+                                        <option key={opt} value={opt}>{opt}</option>
+                                    ))}
+                                </Select>
+                            </Field>
+
+                            <div className="sm:col-span-2">
+                                <Field id="vacancy-description" label="Описание вакансии" error={fieldErrors.description}>
+                                    <Textarea
+                                        id="vacancy-description"
+                                        rows={4}
+                                        placeholder="Обязанности, требования, условия"
+                                        error={!!fieldErrors.description}
+                                        aria-describedby={fieldErrors.description ? 'vacancy-description-error' : undefined}
+                                        value={description}
+                                        onChange={bind('description', setDescription)}
+                                    />
+                                </Field>
+                            </div>
+
+                            <div className="flex flex-wrap gap-3 sm:col-span-2">
+                                <Button type="submit">
+                                    {editingId ? 'Сохранить изменения' : 'Опубликовать вакансию'}
+                                </Button>
+                                <Button type="button" variant="secondary" onClick={closeForm}>
+                                    Отмена
+                                </Button>
+                            </div>
+                        </form>
+                    </Panel>
+                </div>
+            )}
 
             {/* ОТКЛИКИ КАНДИДАТОВ */}
             <Panel icon={Inbox} title={`Отклики кандидатов (${myResponses.length})`}>
@@ -437,7 +424,7 @@ const handleSubmit = async (e) => {
                                     <div className="min-w-0 space-y-1.5">
                                         <div className="flex flex-wrap items-center gap-2">
                                             <h4 className="font-medium">
-                                                {worker?.user?.name || worker?.name || 'Кандидат'}
+                                                {worker?.user?.name || 'Кандидат'}
                                             </h4>
                                             <StatusBadge status={resp.status} labels={EMPLOYER_STATUS_LABELS} />
                                         </div>
@@ -445,13 +432,13 @@ const handleSubmit = async (e) => {
                                             Вакансия:{' '}
                                             <span className="text-[var(--text)]">{vacancyObj?.title || 'Вакансия'}</span>
                                         </p>
-                                        <p className="flex items-start gap-1.5 break-words text-sm text-[var(--muted)]">
+                                        <p className="flex items-start gap-1.5 whitespace-pre-line break-words text-sm text-[var(--muted)]">
                                             <FileText size={15} className="mt-0.5 shrink-0" aria-hidden="true" />
                                             {worker?.resume || 'Резюме не указано'}
                                         </p>
                                         <p className="flex items-center gap-1.5 text-sm text-[var(--muted)]">
-                                            <Phone size={15} className="shrink-0" aria-hidden="true" />
-                                            {worker?.phone || 'Не указан'}
+                                            <Mail size={15} className="shrink-0" aria-hidden="true" />
+                                            {worker?.user?.email || '—'}
                                         </p>
                                     </div>
 
@@ -460,7 +447,7 @@ const handleSubmit = async (e) => {
                                             size="sm"
                                             variant="success"
                                             disabled={resp.status === 'accepted'}
-                                            onClick={() => handleResponseStatus(resp._id, 'accepted')}
+                                            onClick={() => dispatch(updateResponseStatus({ responseId: resp._id, status: 'accepted' }))}
                                         >
                                             <Check size={14} aria-hidden="true" />
                                             Принять
@@ -469,7 +456,7 @@ const handleSubmit = async (e) => {
                                             size="sm"
                                             variant="danger-soft"
                                             disabled={resp.status === 'rejected'}
-                                            onClick={() => handleResponseStatus(resp._id, 'rejected')}
+                                            onClick={() => dispatch(updateResponseStatus({ responseId: resp._id, status: 'rejected' }))}
                                         >
                                             <X size={14} aria-hidden="true" />
                                             Отклонить
@@ -481,93 +468,6 @@ const handleSubmit = async (e) => {
                     </ul>
                 )}
             </Panel>
-
-            {/* ФОРМА ВАКАНСИИ */}
-            {isFormOpen && (
-            <div ref={formRef} className="scroll-mt-24">
-                <Panel
-                    icon={editingId ? Pencil : PlusCircle}
-                    title={editingId ? 'Редактировать вакансию' : 'Создать новую вакансию'}
-                >
-                    {/* noValidate отключает всплывающие подсказки браузера, чтобы показывались сообщения Zod */}
-                    <form onSubmit={handleSubmit} noValidate className="grid gap-4 sm:grid-cols-2">
-                        <Field id="vacancy-title" label="Название должности" error={fieldErrors.title}>
-                            <Input
-                                id="vacancy-title"
-                                placeholder="Например, Frontend-разработчик"
-                                error={!!fieldErrors.title}
-                                aria-describedby={fieldErrors.title ? 'vacancy-title-error' : undefined}
-                                value={title}
-                                onChange={bind('title', setTitle)}
-                            />
-                        </Field>
-
-                        <Field id="vacancy-city" label="Город" error={fieldErrors.city}>
-                            <Input
-                                id="vacancy-city"
-                                placeholder="Караганда"
-                                error={!!fieldErrors.city}
-                                aria-describedby={fieldErrors.city ? 'vacancy-city-error' : undefined}
-                                value={city}
-                                onChange={bind('city', setCity)}
-                            />
-                        </Field>
-
-                        <Field id="vacancy-salary" label="Зарплата (₸)" error={fieldErrors.salary}>
-                            <Input
-                                id="vacancy-salary"
-                                type="number"
-                                min="0"
-                                inputMode="numeric"
-                                placeholder="300000"
-                                error={!!fieldErrors.salary}
-                                aria-describedby={fieldErrors.salary ? 'vacancy-salary-error' : undefined}
-                                value={salary}
-                                onChange={bind('salary', setSalary)}
-                            />
-                        </Field>
-
-                        <Field id="vacancy-experience" label="Опыт работы" error={fieldErrors.experience}>
-                            <Select
-                                id="vacancy-experience"
-                                error={!!fieldErrors.experience}
-                                value={experience}
-                                onChange={bind('experience', setExperience)}
-                            >
-                                {EXPERIENCE_OPTIONS.map((opt) => (
-                                    <option key={opt} value={opt}>{opt}</option>
-                                ))}
-                            </Select>
-                        </Field>
-
-                        <div className="sm:col-span-2">
-                            <Field id="vacancy-description" label="Описание вакансии" error={fieldErrors.description}>
-                                <Textarea
-                                    id="vacancy-description"
-                                    rows={4}
-                                    placeholder="Обязанности, требования, условия"
-                                    error={!!fieldErrors.description}
-                                    aria-describedby={fieldErrors.description ? 'vacancy-description-error' : undefined}
-                                    value={description}
-                                    onChange={bind('description', setDescription)}
-                                />
-                            </Field>
-                        </div>
-
-                        <div className="flex flex-wrap gap-3 sm:col-span-2">
-                            <Button type="submit">
-                                {editingId ? 'Сохранить изменения' : 'Опубликовать вакансию'}
-                            </Button>
-                            {isFormOpen && (
-                                <Button type="button" variant="secondary" onClick={resetForm}>
-                                    Отмена
-                                </Button>
-                            )}
-                        </div>
-                    </form>
-                </Panel>
-                </div>
-)}
 
             {/* ГРАФИКИ */}
             <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">

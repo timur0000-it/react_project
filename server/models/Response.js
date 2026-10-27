@@ -18,7 +18,7 @@ const ResponseSchema = new mongoose.Schema({
   }
 }, { timestamps: true });
 
-// Защита от повторных откликов: пара (worker + vacancy) должна быть уникальной
+
 ResponseSchema.index({ worker: 1, vacancy: 1 }, { unique: true });
 
 export default mongoose.model('Response', ResponseSchema);
