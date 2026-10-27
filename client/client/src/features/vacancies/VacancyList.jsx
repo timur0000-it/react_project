@@ -1,6 +1,7 @@
 import { useDispatch, useSelector } from "react-redux";
 import { useState } from 'react';
 import { SearchX, X } from "lucide-react";
+import { toast } from 'sonner';
 import { applyToVacancy } from "../dashboard/dashboardSlice";
 import { Loader } from "../../components/common/Loader";
 import { Input } from "../../components/common/Input";
@@ -10,9 +11,7 @@ import { VacancyCard } from "./VacancyCard";
 
 export function VacancyList() {
     const dispatch = useDispatch();
-    const { items, status, error } = useSelector(
-    (state) => state.vacancies
-    );
+    const { items, status, error } = useSelector((state) => state.vacancies);
 
     const [searchQuery, setSearchQuery] = useState('');
     const [minSalary, setMinSalary] = useState('');
@@ -35,6 +34,15 @@ export function VacancyList() {
         const matchesExperience = experienceFilter === 'Все' || vacancy.experience === experienceFilter;
         return matchesQuery && matchesSalary && matchesExperience;
     });
+
+    // Тост об ошибке покажет App.jsx, здесь только успех
+    const handleApply = async (vacancyId) => {
+        const result = await dispatch(applyToVacancy(vacancyId));
+
+        if (result.meta.requestStatus === 'fulfilled') {
+            toast.success('Отклик отправлен');
+        }
+    };
 
     if (status === 'idle' || status === 'loading') return <Loader />;
     if (status === 'failed') {
@@ -131,7 +139,7 @@ export function VacancyList() {
                             vacancy={vacancy}
                             userRole={user?.role}
                             hasApplied={appliedVacancyIds.has(String(vacancy._id))}
-                            onApply={() => dispatch(applyToVacancy(vacancy._id))}
+                            onApply={() => handleApply(vacancy._id)}
                         />
                     ))}
                 </div>

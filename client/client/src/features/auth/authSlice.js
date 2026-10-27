@@ -67,9 +67,6 @@ const authSlice = createSlice({
     authCheckStatus: 'idle',
   },
   reducers: {
-    clearError: (state) => {
-      state.error = null;
-    },
     // Их вызывает axios.js при автоматическом обновлении токена
     sessionRefreshed: (state, action) => {
       state.user = action.payload.user;
@@ -113,5 +110,5 @@ const authSlice = createSlice({
   },
 });
 
-export const { clearError } = authSlice.actions;
+
 export default authSlice.reducer;

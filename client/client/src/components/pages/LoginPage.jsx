@@ -4,7 +4,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 
-import { loginUser, clearError } from '../../features/auth/authSlice';
+import { loginUser } from '../../features/auth/authSlice';
 import { getRequestError } from '../../lib/getRequestError';
 import { loginSchema } from '../../lib/schemas';
 import { validate } from '../../lib/validate';
@@ -36,8 +36,6 @@ export function LoginPage() {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-
-        dispatch(clearError());
 
         const { data, errors } = validate(
             loginSchema,

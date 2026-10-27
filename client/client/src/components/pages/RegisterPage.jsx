@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { Link, useNavigate } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
-import { registerUser, clearError } from '../../features/auth/authSlice';
+import { registerUser } from '../../features/auth/authSlice';
 import { registerSchema } from '../../lib/schemas';
 import { validate } from '../../lib/validate';
 import { Input } from '../common/Input';
@@ -30,7 +30,7 @@ const { isLoading } = useSelector((state) => state.auth);
 
 const handleSubmit = async (e) => {
     e.preventDefault();
-    dispatch(clearError());
+    
 
     const { data, errors } = validate(
         registerSchema,

@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { Doughnut, Bar, Line } from 'react-chartjs-2';
+import { toast } from 'sonner';
 import {
-    Briefcase, Check, FileText, Inbox, Mail, Pencil, PieChart, PlusCircle, Trash2, TrendingUp, Wallet, X
+    Briefcase, Check, FileText, Inbox, Mail, Pencil,
+    PieChart, PlusCircle, Trash2, TrendingUp, Wallet, X
 } from 'lucide-react';
 
 import { updateResponseStatus } from './dashboardSlice';
@@ -23,7 +25,7 @@ const EMPLOYER_STATUS_LABELS = { accepted: 'Принято (Приглашени
 
 export function EmployerDashboard() {
     const dispatch = useDispatch();
-    const { responses, status, error, actionError } = useSelector((state) => state.dashboard);
+    const { responses, status, error } = useSelector((state) => state.dashboard);
     const vacancies = useSelector((state) => state.vacancies.items);
     const vacanciesStatus = useSelector((state) => state.vacancies.status);
     const { user } = useSelector((state) => state.auth);
@@ -49,7 +51,14 @@ export function EmployerDashboard() {
 
     const displayName = user?.name || 'Работодатель';
 
+    // Сервер отдаёт в откликах только отклики на вакансии работодателя
     const myResponses = responses;
+
+    // ==========================================
+    // МЕМОИЗИРОВАННЫЕ ДАННЫЕ ДЛЯ ГРАФИКОВ
+    // Пересчитываются только при смене своих зависимостей,
+    // а не при вводе текста в форму
+    // ==========================================
 
     const myVacancies = useMemo(
         () => vacancies.filter((v) => String(v.employer?._id || v.employer) === String(user?.profileId)),
@@ -213,8 +222,29 @@ export function EmployerDashboard() {
                 : createVacancy(vacancyData)
         );
 
-        // При ошибке сервера оставляем форму открытой, чтобы не потерять введённые данные
-        if (result.meta.requestStatus === 'fulfilled') closeForm();
+        // При ошибке сервера оставляем форму открытой (тост с ошибкой покажет App)
+        if (result.meta.requestStatus === 'fulfilled') {
+            toast.success(editingId ? 'Вакансия обновлена' : 'Вакансия опубликована');
+            closeForm();
+        }
+    };
+
+    const handleDelete = async (id) => {
+        const result = await dispatch(deleteVacancy(id));
+
+        if (result.meta.requestStatus === 'fulfilled') {
+            toast.success('Вакансия удалена');
+            // Если удалили вакансию, которая сейчас редактируется, закрываем форму
+            if (editingId === id) closeForm();
+        }
+    };
+
+    const handleStatus = async (responseId, newStatus) => {
+        const result = await dispatch(updateResponseStatus({ responseId, status: newStatus }));
+
+        if (result.meta.requestStatus === 'fulfilled') {
+            toast.success(newStatus === 'accepted' ? 'Кандидат приглашён' : 'Отклик отклонён');
+        }
     };
 
     const isLoading = [status, vacanciesStatus].some((s) => s === 'idle' || s === 'loading');
@@ -225,12 +255,13 @@ export function EmployerDashboard() {
 
     return (
         <div className="mx-auto w-full max-w-6xl space-y-6 px-4 py-8 sm:px-6">
-            {(error || actionError) && (
+            {/* Ошибки действий показывает тост (см. App.jsx), здесь только ошибка загрузки кабинета */}
+            {error && (
                 <div
                     role="alert"
                     className="rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-600 dark:text-red-400"
                 >
-                    Ошибка: {error || actionError}
+                    Ошибка: {error}
                 </div>
             )}
 
@@ -249,7 +280,6 @@ export function EmployerDashboard() {
                             Работодатель
                         </span>
                     </div>
-
                 </div>
             </section>
 
@@ -297,7 +327,7 @@ export function EmployerDashboard() {
                                         <Pencil size={14} aria-hidden="true" />
                                         Редактировать
                                     </Button>
-                                    <Button size="sm" variant="danger-soft" onClick={() => dispatch(deleteVacancy(vacancy._id))}>
+                                    <Button size="sm" variant="danger-soft" onClick={() => handleDelete(vacancy._id)}>
                                         <Trash2 size={14} aria-hidden="true" />
                                         Удалить
                                     </Button>
@@ -434,7 +464,7 @@ export function EmployerDashboard() {
                                             size="sm"
                                             variant="success"
                                             disabled={resp.status === 'accepted'}
-                                            onClick={() => dispatch(updateResponseStatus({ responseId: resp._id, status: 'accepted' }))}
+                                            onClick={() => handleStatus(resp._id, 'accepted')}
                                         >
                                             <Check size={14} aria-hidden="true" />
                                             Принять
@@ -443,7 +473,7 @@ export function EmployerDashboard() {
                                             size="sm"
                                             variant="danger-soft"
                                             disabled={resp.status === 'rejected'}
-                                            onClick={() => dispatch(updateResponseStatus({ responseId: resp._id, status: 'rejected' }))}
+                                            onClick={() => handleStatus(resp._id, 'rejected')}
                                         >
                                             <X size={14} aria-hidden="true" />
                                             Отклонить

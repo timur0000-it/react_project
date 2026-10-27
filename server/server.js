@@ -331,7 +331,7 @@ app.patch(
     const worker = await Worker.findByIdAndUpdate(
       req.user.profileId,
       { resume: resume.trim() },
-      { new: true }
+      { returnDocument: 'after' }
     )
       .populate('user', 'name email')
       .lean();

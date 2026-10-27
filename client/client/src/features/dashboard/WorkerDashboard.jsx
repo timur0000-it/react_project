@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { Doughnut, Bar, Line } from 'react-chartjs-2';
+import { toast } from 'sonner';
 import {
     Briefcase, FileText, Inbox, Pencil, PieChart, TrendingUp, UserPen
 } from 'lucide-react';
@@ -20,7 +21,7 @@ const WORKER_STATUS_LABELS = { accepted: 'Приглашение', rejected: 'О
 
 export function WorkerDashboard() {
     const dispatch = useDispatch();
-    const { responses, profile, status, error, actionError } = useSelector((state) => state.dashboard);
+    const { responses, profile, status, error } = useSelector((state) => state.dashboard);
     const vacancies = useSelector((state) => state.vacancies.items);
     const vacanciesStatus = useSelector((state) => state.vacancies.status);
     const { user } = useSelector((state) => state.auth);
@@ -68,8 +69,11 @@ export function WorkerDashboard() {
 
         const result = await dispatch(updateWorkerResume({ resume: data.resume }));
 
-        // При ошибке сервера оставляем форму открытой, чтобы не потерять введённый текст
-        if (result.meta.requestStatus === 'fulfilled') closeForm();
+        // При ошибке сервера оставляем форму открытой (тост с ошибкой покажет App)
+        if (result.meta.requestStatus === 'fulfilled') {
+            toast.success('Резюме сохранено');
+            closeForm();
+        }
     };
 
     // Сервер отдаёт соискателю только его собственные отклики
@@ -77,7 +81,7 @@ export function WorkerDashboard() {
 
     const chartOptions = useMemo(() => getChartOptions(chartTheme), [chartTheme]);
 
-    // разделители цифр не 300000 а 300 000
+    // Разделители разрядов на оси: 300 000, а не 300000
     const salaryChartOptions = useMemo(() => ({
         ...chartOptions.axis,
         scales: {
@@ -183,12 +187,13 @@ export function WorkerDashboard() {
 
     return (
         <div className="mx-auto w-full max-w-6xl space-y-6 px-4 py-8 sm:px-6">
-            {(error || actionError) && (
+            {/* Ошибки действий показывает тост (см. App.jsx), здесь только ошибка загрузки кабинета */}
+            {error && (
                 <div
                     role="alert"
                     className="rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-600 dark:text-red-400"
                 >
-                    Ошибка: {error || actionError}
+                    Ошибка: {error}
                 </div>
             )}
 
@@ -263,7 +268,7 @@ export function WorkerDashboard() {
                 </div>
             )}
 
-            {/* (3 ГРАФИКА) */}
+            {/* АНАЛИТИКА (3 ГРАФИКА) */}
             <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
                 <Panel icon={PieChart} title="Воронка статусов">
                     <div className="h-64 w-full">
