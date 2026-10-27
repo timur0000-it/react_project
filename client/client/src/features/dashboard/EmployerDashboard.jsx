@@ -45,19 +45,27 @@ export function EmployerDashboard() {
     const [experience, setExperience] = useState('Без опыта');
     const [editingId, setEditingId] = useState(null);
     const [fieldErrors, setFieldErrors] = useState({});
-    
-useEffect(() => {
-    dispatch(fetchDashboardData())
-        .unwrap()
-        .catch((error) => {
-            toast.error(
-                getRequestError(
-                    error,
-                    'Не удалось загрузить панель работодателя'
-                )
-            );
-        });
-}, [dispatch]);
+    const [isFormOpen, setIsFormOpen] = useState(false);
+    useEffect(() => {
+        dispatch(fetchDashboardData())
+            .unwrap()
+            .catch((error) => {
+                toast.error(
+                    getRequestError(
+                        error,
+                        'Не удалось загрузить панель работодателя'
+                    )
+                );
+            });
+    }, [dispatch]);
+    useEffect(() => {
+        if (isFormOpen) {
+            formRef.current?.scrollIntoView({
+                behavior: 'smooth',
+                block: 'start',
+            });
+        }
+    }, [isFormOpen, editingId]);
     // Извлекаем профиль работодателя с учетом вложенностей
     const actualEmployer = employerProfile?.employer || employerProfile || {};
 
@@ -212,6 +220,7 @@ useEffect(() => {
         setSalary('');
         setExperience('Без опыта');
         setFieldErrors({});
+        setIsFormOpen(false);
     };
 
 const handleSubmit = async (e) => {
@@ -261,20 +270,27 @@ const handleSubmit = async (e) => {
             )
         );
     }
-};
-
-    const handleEdit = (vacancy) => {
-        setEditingId(vacancy._id);
-        setTitle(vacancy.title);
-        setDescription(vacancy.description || '');
-        setCity(vacancy.city);
-        setSalary(vacancy.salary);
-        setExperience(vacancy.experience);
-        setFieldErrors({});
-        // форма находится ниже списка, поэтому прокручиваем к ней
-        formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     };
-
+        const handleCreate = () => {
+        setEditingId(null);
+        setTitle('');
+        setDescription('');
+        setCity('');
+        setSalary('');
+        setExperience('Без опыта');
+        setFieldErrors({});
+        setIsFormOpen(true);
+    };
+        const handleEdit = (vacancy) => {
+            setEditingId(vacancy._id);
+            setTitle(vacancy.title);
+            setDescription(vacancy.description || '');
+            setCity(vacancy.city);
+            setSalary(vacancy.salary);
+            setExperience(vacancy.experience);
+            setFieldErrors({});
+            setIsFormOpen(true);
+        };
     const handleDelete = async (id) => {
         try {
             await dispatch(deleteVacancy(id)).unwrap();
@@ -349,7 +365,14 @@ const handleSubmit = async (e) => {
                     </div>
                 </div>
             </section>
-
+                    {!isFormOpen && (
+            <div className="flex justify-end">
+                <Button type="button" onClick={handleCreate}>
+                    <PlusCircle size={16} aria-hidden="true" />
+                    Создать вакансию
+                </Button>
+            </div>
+        )}
             {/* СПИСОК МОИХ ВАКАНСИЙ */}
             <Panel icon={Briefcase} title={`Мои вакансии (${myVacancies.length})`}>
                 {myVacancies.length === 0 ? (
@@ -460,6 +483,7 @@ const handleSubmit = async (e) => {
             </Panel>
 
             {/* ФОРМА ВАКАНСИИ */}
+            {isFormOpen && (
             <div ref={formRef} className="scroll-mt-24">
                 <Panel
                     icon={editingId ? Pencil : PlusCircle}
@@ -534,7 +558,7 @@ const handleSubmit = async (e) => {
                             <Button type="submit">
                                 {editingId ? 'Сохранить изменения' : 'Опубликовать вакансию'}
                             </Button>
-                            {editingId && (
+                            {isFormOpen && (
                                 <Button type="button" variant="secondary" onClick={resetForm}>
                                     Отмена
                                 </Button>
@@ -542,7 +566,8 @@ const handleSubmit = async (e) => {
                         </div>
                     </form>
                 </Panel>
-            </div>
+                </div>
+)}
 
             {/* ГРАФИКИ */}
             <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">

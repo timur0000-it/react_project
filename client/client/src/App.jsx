@@ -11,7 +11,7 @@ import { Toaster } from 'sonner';
 function App() {
   const dispatch = useDispatch();
 
-  // При первой загрузке приложения делаем контрольный запрос на /refresh для восстановления сессии
+
   useEffect(() => {
     dispatch(checkAuth());
   }, [dispatch]);
@@ -29,7 +29,8 @@ function App() {
 
         <Route path="/" element={<JobsPage />} />
       </Route>
-      {/* Любой неизвестный адрес ведёт на главную (если не авторизован, ProtectedRoute отправит на /login) */}
+      
+      {/* 404 */}
       <Route path="*" element={<NotFoundPage />} />
     </Routes>
     </>

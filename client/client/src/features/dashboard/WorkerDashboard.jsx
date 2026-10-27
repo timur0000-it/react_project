@@ -29,7 +29,7 @@ export function WorkerDashboard() {
 
     const [resume, setResume] = useState('');
     const [fieldErrors, setFieldErrors] = useState({});
-
+    const [isResumeFormOpen, setIsResumeFormOpen] = useState(false);
     useEffect(() => {
         dispatch(fetchDashboardData())
             .unwrap()
@@ -84,6 +84,7 @@ const handleSubmit = async (e) => {
         ).unwrap();
 
         toast.success('Резюме успешно обновлено');
+        setIsResumeFormOpen(false);
     } catch (error) {
         toast.error(
             getRequestError(
@@ -237,6 +238,20 @@ const handleSubmit = async (e) => {
                         {savedResume || 'Резюме пока не заполнено.'}
                     </p>
                 </div>
+                <div className="mt-4 flex justify-end">
+                    <Button
+                        type="button"
+                        variant="secondary"
+                        onClick={() => {
+                            setResume(savedResume);
+                            setFieldErrors({});
+                            setIsResumeFormOpen(true);
+                        }}
+                    >
+                        <UserPen size={16} aria-hidden="true" />
+                        Редактировать резюме
+                    </Button>
+                </div>
             </section>
 
             {/* АНАЛИТИКА (3 ГРАФИКА) */}
@@ -260,25 +275,54 @@ const handleSubmit = async (e) => {
                 </Panel>
             </div>
 
-            {/* РЕДАКТИРОВАНИЕ РЕЗЮМЕ */}
-            <Panel icon={UserPen} title="Редактировать резюме">
-                {/* noValidate отключает всплывающие подсказки браузера, чтобы показывались сообщения Zod */}
-                <form onSubmit={handleSubmit} noValidate className="space-y-4">
-                    <Field id="worker-resume" label="О себе / Опыт работы" error={fieldErrors.resume}>
-                        <Textarea
+                        {/* РЕДАКТИРОВАНИЕ РЕЗЮМЕ */}
+            {isResumeFormOpen && (
+                <Panel icon={UserPen} title="Редактировать резюме">
+                    <form
+                        onSubmit={handleSubmit}
+                        noValidate
+                        className="space-y-4"
+                    >
+                        <Field
                             id="worker-resume"
-                            rows={6}
-                            placeholder="Расскажите о своем опыте..."
-                            error={!!fieldErrors.resume}
-                            aria-describedby={fieldErrors.resume ? 'worker-resume-error' : undefined}
-                            value={resume}
-                            onChange={handleChange}
-                        />
-                    </Field>
+                            label="О себе / Опыт работы"
+                            error={fieldErrors.resume}
+                        >
+                            <Textarea
+                                id="worker-resume"
+                                rows={6}
+                                placeholder="Расскажите о своем опыте..."
+                                error={!!fieldErrors.resume}
+                                aria-describedby={
+                                    fieldErrors.resume
+                                        ? 'worker-resume-error'
+                                        : undefined
+                                }
+                                value={resume}
+                                onChange={handleChange}
+                            />
+                        </Field>
 
-                    <Button type="submit">Обновить резюме</Button>
-                </form>
-            </Panel>
+                        <div className="flex flex-wrap gap-3">
+                            <Button type="submit">
+                                Сохранить резюме
+                            </Button>
+
+                            <Button
+                                type="button"
+                                variant="secondary"
+                                onClick={() => {
+                                    setResume(savedResume);
+                                    setFieldErrors({});
+                                    setIsResumeFormOpen(false);
+                                }}
+                            >
+                                Отмена
+                            </Button>
+                        </div>
+                    </form>
+                </Panel>
+            )}
 
             {/* СПИСОК ОТКЛИКОВ */}
             <Panel icon={Inbox} title={`Мои отклики (${myResponses.length})`}>
