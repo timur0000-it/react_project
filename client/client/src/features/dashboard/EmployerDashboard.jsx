@@ -51,8 +51,14 @@ export function EmployerDashboard() {
 
     const displayName = user?.name || 'Работодатель';
 
-    // Сервер отдаёт в откликах только отклики на вакансии работодателя
+    // Сервер отдаёт в откликах только отклики на вакансии работодателя.
+    // Все отклики нужны для графиков, а в списке показываем только необработанные:
+    // после «Принять» / «Отклонить» карточка пропадает из списка
     const myResponses = responses;
+    const pendingResponses = useMemo(
+        () => myResponses.filter((r) => r.status === 'pending' || !r.status),
+        [myResponses]
+    );
 
     // ==========================================
     // МЕМОИЗИРОВАННЫЕ ДАННЫЕ ДЛЯ ГРАФИКОВ
@@ -82,7 +88,7 @@ export function EmployerDashboard() {
         },
     }), [chartOptions]);
 
-    // 1. Статусы откликов
+    // 1. Статусы откликов (считаются по всем откликам, включая обработанные)
     const responseStatusChartData = useMemo(() => {
         const pendingCount = myResponses.filter(r => r.status === 'pending' || !r.status).length;
         const acceptedCount = myResponses.filter(r => r.status === 'accepted').length;
@@ -423,13 +429,13 @@ export function EmployerDashboard() {
                 </div>
             )}
 
-            {/* ОТКЛИКИ КАНДИДАТОВ */}
-            <Panel icon={Inbox} title={`Отклики кандидатов (${myResponses.length})`}>
-                {myResponses.length === 0 ? (
-                    <p className="text-sm text-[var(--muted)]">Пока нет откликов на ваши вакансии.</p>
+            {/* ОТКЛИКИ КАНДИДАТОВ (только необработанные) */}
+            <Panel icon={Inbox} title={`Новые отклики (${pendingResponses.length})`}>
+                {pendingResponses.length === 0 ? (
+                    <p className="text-sm text-[var(--muted)]">Новых откликов нет.</p>
                 ) : (
                     <ul className="space-y-3">
-                        {myResponses.map((resp) => {
+                        {pendingResponses.map((resp) => {
                             const vacancyObj = vacancies.find(v => String(v._id) === String(resp.vacancy?._id || resp.vacancy));
                             const worker = resp.worker;
 
@@ -463,7 +469,6 @@ export function EmployerDashboard() {
                                         <Button
                                             size="sm"
                                             variant="success"
-                                            disabled={resp.status === 'accepted'}
                                             onClick={() => handleStatus(resp._id, 'accepted')}
                                         >
                                             <Check size={14} aria-hidden="true" />
@@ -472,7 +477,6 @@ export function EmployerDashboard() {
                                         <Button
                                             size="sm"
                                             variant="danger-soft"
-                                            disabled={resp.status === 'rejected'}
                                             onClick={() => handleStatus(resp._id, 'rejected')}
                                         >
                                             <X size={14} aria-hidden="true" />
