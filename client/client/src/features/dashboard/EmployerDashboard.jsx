@@ -23,6 +23,13 @@ import { validate } from '../../lib/validate';
 
 const EMPLOYER_STATUS_LABELS = { accepted: 'Принято (Приглашение)' };
 
+// Вкладки откликов: ключ совпадает со статусом отклика
+const RESPONSE_TABS = [
+    { key: 'pending', label: 'Новые', empty: 'Новых откликов нет.' },
+    { key: 'accepted', label: 'Приглашённые', empty: 'Приглашённых кандидатов пока нет.' },
+    { key: 'rejected', label: 'Отклонённые', empty: 'Отклонённых откликов нет.' },
+];
+
 export function EmployerDashboard() {
     const dispatch = useDispatch();
     const { responses, status, error } = useSelector((state) => state.dashboard);
@@ -31,6 +38,9 @@ export function EmployerDashboard() {
     const { user } = useSelector((state) => state.auth);
     const chartTheme = useChartTheme();
     const formRef = useRef(null);
+
+    // Активная вкладка откликов
+    const [responseTab, setResponseTab] = useState('pending');
 
     // Форма вакансии
     const [isFormOpen, setIsFormOpen] = useState(false);
@@ -51,14 +61,21 @@ export function EmployerDashboard() {
 
     const displayName = user?.name || 'Работодатель';
 
-    // Сервер отдаёт в откликах только отклики на вакансии работодателя.
-    // Все отклики нужны для графиков, а в списке показываем только необработанные:
-    // после «Принять» / «Отклонить» карточка пропадает из списка
+    // Сервер отдаёт в откликах только отклики на вакансии работодателя
     const myResponses = responses;
-    const pendingResponses = useMemo(
-        () => myResponses.filter((r) => r.status === 'pending' || !r.status),
-        [myResponses]
-    );
+
+    // Отклики, разложенные по статусам: из этого строятся и вкладки, и график.
+    // Отклик без статуса считается новым
+    const responsesByStatus = useMemo(() => {
+        const groups = { pending: [], accepted: [], rejected: [] };
+        myResponses.forEach((r) => {
+            groups[r.status in groups ? r.status : 'pending'].push(r);
+        });
+        return groups;
+    }, [myResponses]);
+
+    const visibleResponses = responsesByStatus[responseTab];
+    const activeTab = RESPONSE_TABS.find((tab) => tab.key === responseTab);
 
     // ==========================================
     // МЕМОИЗИРОВАННЫЕ ДАННЫЕ ДЛЯ ГРАФИКОВ
@@ -88,24 +105,22 @@ export function EmployerDashboard() {
         },
     }), [chartOptions]);
 
-    // 1. Статусы откликов (считаются по всем откликам, включая обработанные)
-    const responseStatusChartData = useMemo(() => {
-        const pendingCount = myResponses.filter(r => r.status === 'pending' || !r.status).length;
-        const acceptedCount = myResponses.filter(r => r.status === 'accepted').length;
-        const rejectedCount = myResponses.filter(r => r.status === 'rejected').length;
-
-        return {
-            labels: ['На рассмотрении', 'Принято (Приглашения)', 'Отклонено'],
-            datasets: [
-                {
-                    data: [pendingCount, acceptedCount, rejectedCount],
-                    backgroundColor: [CHART_COLORS.pending, CHART_COLORS.accepted, CHART_COLORS.rejected],
-                    borderColor: chartTheme.surface,
-                    borderWidth: 3,
-                },
-            ],
-        };
-    }, [myResponses, chartTheme]);
+    // 1. Статусы откликов
+    const responseStatusChartData = useMemo(() => ({
+        labels: ['На рассмотрении', 'Принято (Приглашения)', 'Отклонено'],
+        datasets: [
+            {
+                data: [
+                    responsesByStatus.pending.length,
+                    responsesByStatus.accepted.length,
+                    responsesByStatus.rejected.length,
+                ],
+                backgroundColor: [CHART_COLORS.pending, CHART_COLORS.accepted, CHART_COLORS.rejected],
+                borderColor: chartTheme.surface,
+                borderWidth: 3,
+            },
+        ],
+    }), [responsesByStatus, chartTheme]);
 
     // 2. Средняя зарплата по сферам
     const salaryChartData = useMemo(() => {
@@ -429,13 +444,28 @@ export function EmployerDashboard() {
                 </div>
             )}
 
-            {/* ОТКЛИКИ КАНДИДАТОВ (только необработанные) */}
-            <Panel icon={Inbox} title={`Новые отклики (${pendingResponses.length})`}>
-                {pendingResponses.length === 0 ? (
-                    <p className="text-sm text-[var(--muted)]">Новых откликов нет.</p>
+            {/* ОТКЛИКИ КАНДИДАТОВ (вкладки: новые / приглашённые / отклонённые) */}
+            <Panel icon={Inbox} title={`Отклики кандидатов (${myResponses.length})`}>
+                <div role="tablist" className="mb-4 flex flex-wrap gap-2">
+                    {RESPONSE_TABS.map((tab) => (
+                        <Button
+                            key={tab.key}
+                            size="sm"
+                            role="tab"
+                            aria-selected={responseTab === tab.key}
+                            variant={responseTab === tab.key ? 'primary' : 'secondary'}
+                            onClick={() => setResponseTab(tab.key)}
+                        >
+                            {tab.label} ({responsesByStatus[tab.key].length})
+                        </Button>
+                    ))}
+                </div>
+
+                {visibleResponses.length === 0 ? (
+                    <p className="text-sm text-[var(--muted)]">{activeTab.empty}</p>
                 ) : (
                     <ul className="space-y-3">
-                        {pendingResponses.map((resp) => {
+                        {visibleResponses.map((resp) => {
                             const vacancyObj = vacancies.find(v => String(v._id) === String(resp.vacancy?._id || resp.vacancy));
                             const worker = resp.worker;
 
@@ -465,10 +495,12 @@ export function EmployerDashboard() {
                                         </p>
                                     </div>
 
+                                    {/* Кнопка текущего статуса неактивна, так что решение можно изменить на другой вкладке */}
                                     <div className="flex gap-2">
                                         <Button
                                             size="sm"
                                             variant="success"
+                                            disabled={resp.status === 'accepted'}
                                             onClick={() => handleStatus(resp._id, 'accepted')}
                                         >
                                             <Check size={14} aria-hidden="true" />
@@ -477,6 +509,7 @@ export function EmployerDashboard() {
                                         <Button
                                             size="sm"
                                             variant="danger-soft"
+                                            disabled={resp.status === 'rejected'}
                                             onClick={() => handleStatus(resp._id, 'rejected')}
                                         >
                                             <X size={14} aria-hidden="true" />
